@@ -244,7 +244,11 @@ def reiniciar_rifa():
 
 # --- CARGAR CONFIGURACIÓN PERMANENTE ---
 config_actual = obtener_configuracion()
-total_numeros_config = int(config_actual.get("total_numeros", 100))
+try:
+    total_numeros_config = int(config_actual.get("total_numeros", 100))
+except ValueError:
+    total_numeros_config = 100
+
 precio_numero = int(config_actual["rifa_precio"])
 num_limpio = config_actual["sinpe_numero"]
 nombre_sinpe = config_actual["sinpe_nombre"]
@@ -269,13 +273,13 @@ st.caption(f"📅 **Fecha del Sorteo:** {fecha_formateada} | 🎟️ **Valor del
 
 # --- PESTAÑAS PRINCIPALES ---
 tab_comprar, tab_estado, tab_admin = st.tabs([
-    "🎟️ Comprar Boletos", 
+    "🎟️ Comprar Números", 
     "📊 Estado de Números", 
     "🔐 Administración"
 ])
 
 # =============================================================
-# 🎟️ PESTAÑA 1: COMPRAR BOLETOS
+# 🎟️ PESTAÑA 1: COMPRAR NÚMEROS
 # =============================================================
 with tab_comprar:
     # Premio Único
@@ -309,7 +313,7 @@ with tab_comprar:
         st.markdown(
             f"""
             <div class="ticket-box">
-                <h3>🎟️ BOLETO DIGITAL DE RESERVA</h3>
+                <h3>🎟️ COMPROBANTE DE RESERVA</h3>
                 <p><b>Comprador:</b> {st.session_state.nombre_reserva}</p>
                 <p><b>Número(s):</b> {', '.join(st.session_state.numeros_reserva)}</p>
                 <p><b>Total a Pagar:</b> ₡{st.session_state.total_reserva:,.0f} CRC</p>
@@ -338,8 +342,9 @@ with tab_comprar:
         disponibles = total_numeros_config - len(mapa_ocupados)
         st.caption(f"⚪ Disponibles: **{disponibles}** | ❌ Reservados / Pagados: **{len(mapa_ocupados)}**")
 
-        # Generador de pestañas por decenas
-        rangos, bloques = [], []
+        # Pestañas por decenas organizadas
+        rangos = []
+        bloques = []
         for i in range(0, total_numeros_config, 10):
             fin_b = min(i + 9, total_numeros_config - 1)
             rangos.append(f"{i:02d}-{fin_b:02d}")
@@ -350,26 +355,50 @@ with tab_comprar:
             with sub_tab:
                 inicio, fin = bloques[idx]
                 nums_bloque = list(range(inicio, fin + 1))
-                for r_start in range(0, len(nums_bloque), 5):
-                    fila = nums_bloque[r_start : r_start + 5]
-                    cols = st.columns(len(fila))
-                    for c_idx, num_val in enumerate(fila):
+                
+                # Fila 1 (primeros 5 números de la decena)
+                fila1 = nums_bloque[:5]
+                cols1 = st.columns(len(fila1))
+                for c_idx, num_val in enumerate(fila1):
+                    num_str = f"{num_val:02d}"
+                    with cols1[c_idx]:
+                        if num_str in mapa_ocupados:
+                            st.button(f"❌ {num_str}", key=f"b_{num_str}", disabled=True)
+                        else:
+                            marcado = num_str in st.session_state.seleccionados_global
+                            if st.checkbox(num_str, value=marcado, key=f"c_{num_str}"):
+                                if num_str not in st.session_state.seleccionados_global:
+                                    st.session_state.seleccionados_global.append(num_str)
+                                    st.rerun()
+                            else:
+                                if num_str in st.session_state.seleccionados_global:
+                                    st.session_state.seleccionados_global.remove(num_str)
+                                    st.rerun()
+
+                # Fila 2 (siguientes 5 números de la decena)
+                fila2 = nums_bloque[5:]
+                if fila2:
+                    cols2 = st.columns(len(fila2))
+                    for c_idx, num_val in enumerate(fila2):
                         num_str = f"{num_val:02d}"
-                        with cols[c_idx]:
+                        with cols2[c_idx]:
                             if num_str in mapa_ocupados:
                                 st.button(f"❌ {num_str}", key=f"b_{num_str}", disabled=True)
                             else:
-                                if st.checkbox(num_str, key=f"c_{num_str}"):
+                                marcado = num_str in st.session_state.seleccionados_global
+                                if st.checkbox(num_str, value=marcado, key=f"c_{num_str}"):
                                     if num_str not in st.session_state.seleccionados_global:
                                         st.session_state.seleccionados_global.append(num_str)
+                                        st.rerun()
                                 else:
                                     if num_str in st.session_state.seleccionados_global:
                                         st.session_state.seleccionados_global.remove(num_str)
+                                        st.rerun()
 
         seleccionados = sorted(st.session_state.seleccionados_global, key=lambda x: int(x))
         if seleccionados:
             total_pagar = len(seleccionados) * precio_numero
-            st.info(f"🎟️ **Seleccionados:** {', '.join(seleccionados)} | 💰 **Total:** ₡{total_pagar:,.0f} CRC")
+            st.info(f"🎟️ **Números seleccionados:** {', '.join(seleccionados)} | 💰 **Total:** ₡{total_pagar:,.0f} CRC")
             
             st.write("---")
             st.write("### 📋 Completa tu Reserva")
@@ -416,7 +445,7 @@ with tab_estado:
             
         st.dataframe(df_ver, use_container_width=True)
     else:
-        st.info("Aún no hay números reservados. ¡Sé el primero en comprar!")
+        st.info("Aún no hay números reservados. ¡Sé el primero en seleccionar uno!")
 
 # =============================================================
 # 🔐 PESTAÑA 3: ADMINISTRACIÓN (PRIVADA)
