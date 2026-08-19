@@ -6,7 +6,7 @@ import pandas as pd
 # Configuración de la página
 st.set_page_config(page_title="Gestor de Rifas CR 🇨🇷", layout="centered", page_icon="🎟️")
 
-# Estilos CSS personalizados para mejorar el tamaño de las casillas en celular
+# Estilos CSS personalizados
 st.markdown("""
     <style>
     .stButton>button {
@@ -72,6 +72,12 @@ def liberar_numero(numero):
     conn.commit()
     conn.close()
 
+# --- INICIALIZACIÓN DE ESTADO DE SESIÓN ---
+if "reserva_confirmada" not in st.session_state:
+    st.session_state.reserva_confirmada = False
+if "seleccionados_global" not in st.session_state:
+    st.session_state.seleccionados_global = []
+
 # --- PANEL LATERAL ---
 with st.sidebar:
     st.header("⚙️ Configuración de la Rifa")
@@ -116,174 +122,175 @@ with st.sidebar:
 
 # --- VISTA PRINCIPAL ---
 st.title(titulo_rifa)
-st.subheader("Elige tus números del 00 al 99")
 
-st.write("---")
+num_limpio = num_sinpe.replace("-", "").replace(" ", "")
 
-numeros_bloqueados = obtener_numeros_ocupados()
-
-st.write("### 🔢 Selecciona tus números por decenas:")
-st.caption("🔴 Indica número reservado/ocupado | ⚪ Número disponible")
-
-# Pestañas horizontales por decenas
-rangos = [
-    "00 - 09", "10 - 19", "20 - 29", "30 - 39", "40 - 49",
-    "50 - 59", "60 - 69", "70 - 79", "80 - 89", "90 - 99"
-]
-
-tabs = st.tabs(rangos)
-
-if "seleccionados_global" not in st.session_state:
-    st.session_state.seleccionados_global = []
-
-for idx, tab in enumerate(tabs):
-    with tab:
-        inicio = idx * 10
+# --- VISTA 1: SI YA SE CONFIRMÓ LA RESERVA ---
+if st.session_state.reserva_confirmada:
+    st.balloons()
+    
+    cant_reserva = len(st.session_state.numeros_reserva)
+    if cant_reserva == 1:
+        msg_exito = f"🎉 ¡Número **{st.session_state.numeros_reserva[0]}** reservado exitosamente!"
+        txt_nums_wa = f"Número:* {st.session_state.numeros_reserva[0]}"
+    else:
+        nums_texto = ", ".join(st.session_state.numeros_reserva)
+        msg_exito = f"🎉 ¡Números **{nums_texto}** reservados exitosamente!"
+        txt_nums_wa = f"Números:* {nums_texto}"
         
-        # Fila 1: primeros 5 números de la decena
-        cols_fila1 = st.columns(5)
-        for offset in range(5):
-            i = inicio + offset
-            num_str = f"{i:02d}"
-            with cols_fila1[offset]:
-                if num_str in numeros_bloqueados:
-                    st.button(f"❌ {num_str}", key=f"btn_{num_str}", disabled=True)
-                else:
-                    if st.checkbox(num_str, key=f"num_{num_str}"):
-                        if num_str not in st.session_state.seleccionados_global:
-                            st.session_state.seleccionados_global.append(num_str)
-                    else:
-                        if num_str in st.session_state.seleccionados_global:
-                            st.session_state.seleccionados_global.remove(num_str)
-
-        # Fila 2: siguientes 5 números de la decena
-        cols_fila2 = st.columns(5)
-        for offset in range(5, 10):
-            i = inicio + offset
-            num_str = f"{i:02d}"
-            with cols_fila2[offset - 5]:
-                if num_str in numeros_bloqueados:
-                    st.button(f"❌ {num_str}", key=f"btn_{num_str}", disabled=True)
-                else:
-                    if st.checkbox(num_str, key=f"num_{num_str}"):
-                        if num_str not in st.session_state.seleccionados_global:
-                            st.session_state.seleccionados_global.append(num_str)
-                    else:
-                        if num_str in st.session_state.seleccionados_global:
-                            st.session_state.seleccionados_global.remove(num_str)
-
-numeros_seleccionados = sorted(st.session_state.seleccionados_global)
-
-st.write("---")
-
-# --- LÓGICA DE RESERVA Y ESTADO DE SESIÓN ---
-if "reserva_confirmada" not in st.session_state:
-    st.session_state.reserva_confirmada = False
-
-if numeros_seleccionados:
-    total = len(numeros_seleccionados) * precio_numero
-    num_limpio = num_sinpe.replace("-", "").replace(" ", "")
-    cant_seleccionados = len(numeros_seleccionados)
-    
-    # Textos adaptables según singular o plural
-    etiqueta_elegidos = "Número elegido" if cant_seleccionados == 1 else "Números elegidos"
-    
-    st.success(f"**{etiqueta_elegidos} ({cant_seleccionados}):** {', '.join(numeros_seleccionados)}")
-    st.info(f"**Total a pagar:** ₡{total:,.0f} CRC")
-    
-    st.write("### 💳 Datos para pagar por SINPE Móvil")
-    st.write(f"**Titular:** {nombre_sinpe}")
-    
-    col_a, col_b = st.columns(2)
-    with col_a:
-        st.code(num_limpio, language="text")
-        st.caption("Copiar número SINPE")
-    with col_b:
-        st.code(f"{int(total)}", language="text")
-        st.caption("Copiar monto exacto")
+    st.success(msg_exito)
+    st.info(f"👤 **Comprador:** {st.session_state.nombre_reserva} | 💰 **Total a pagar:** ₡{st.session_state.total_reserva:,.0f} CRC")
 
     st.write("---")
-    st.write("### 📋 Datos para la Reserva")
-    nombre_cliente = st.text_input("Tu Nombre Completo:", key="input_nombre")
-    telefono_cliente = st.text_input("Tu Número de Teléfono:", key="input_telefono")
+    st.subheader("📲 Elige tu método para pagar / enviar comprobante:")
+
+    bancos_sms = {
+        "Banco Nacional (BNCR)": "2627",
+        "Banco de Costa Rica (BCR)": "4066",
+        "BAC Credomatic": "70701222",
+        "Banco Promerica": "62232450"
+    }
+
+    banco_seleccionado = st.selectbox("Si pagas por SMS, selecciona tu banco:", list(bancos_sms.keys()))
+    numero_banco = bancos_sms[banco_seleccionado]
     
-    if st.button("🔒 Confirmar Reserva"):
-        if nombre_cliente.strip() != "" and telefono_cliente.strip() != "":
-            exitosos, fallidos = guardar_reserva(numeros_seleccionados, nombre_cliente, telefono_cliente)
-            
-            if fallidos:
-                msg_fallidos = f"El número {fallidos[0]} ya había sido tomado." if len(fallidos) == 1 else f"Los siguientes números ya habían sido tomados: {', '.join(fallidos)}"
-                st.error(msg_fallidos)
-            
-            if exitosos:
-                st.session_state.reserva_confirmada = True
-                st.session_state.numeros_reserva = exitosos
-                st.session_state.total_reserva = total
-                st.session_state.nombre_reserva = nombre_cliente
-                st.session_state.seleccionados_global = [] # Limpiar casillas tras reservar
-                st.balloons()
-        else:
-            st.error("Por favor completa tu nombre y número de teléfono antes de reservar.")
+    texto_sms = f"PASE {int(st.session_state.total_reserva)} {num_limpio} Rifa"
+    texto_sms_codificado = urllib.parse.quote(texto_sms)
+    url_sms = f"sms:{numero_banco}?body={texto_sms_codificado}"
 
-    # --- BLOQUE DE PAGO SI YA SE CONFIRMÓ LA RESERVA ---
-    if st.session_state.reserva_confirmada:
-        st.write("---")
+    mensaje_wa = (
+        f"Hola! Acabo de reservar en la *{titulo_rifa}*:\n\n"
+        f"👤 *Nombre:* {st.session_state.nombre_reserva}\n"
+        f"🎟️ *{txt_nums_wa}\n"
+        f"💰 *Monto transferido:* ₡{st.session_state.total_reserva:,.0f} CRC\n\n"
+        f"Adjunto el comprobante del SINPE Móvil enviado al {num_sinpe}."
+    )
+    mensaje_wa_codificado = urllib.parse.quote(mensaje_wa)
+    url_whatsapp = f"https://wa.me/506{num_limpio}?text={mensaje_wa_codificado}"
+    
+    col_btn1, col_btn2 = st.columns(2)
+    
+    with col_btn1:
+        st.markdown(f"""
+            <a href="{url_sms}">
+                <button style="background-color: #0056b3; color: white; border: none; padding: 14px 15px; font-size: 15px; font-weight: bold; border-radius: 8px; cursor: pointer; width: 100%; margin-bottom: 10px;">
+                    💬 Pagar vía SMS ({numero_banco})
+                </button>
+            </a>
+        """, unsafe_allow_html=True)
+
+    with col_btn2:
+        st.markdown(f"""
+            <a href="{url_whatsapp}" target="_blank">
+                <button style="background-color: #25D366; color: white; border: none; padding: 14px 15px; font-size: 15px; font-weight: bold; border-radius: 8px; cursor: pointer; width: 100%;">
+                    🟢 Confirmar por WhatsApp
+                </button>
+            </a>
+        """, unsafe_allow_html=True)
         
-        cant_reserva = len(st.session_state.numeros_reserva)
-        if cant_reserva == "1" or cant_reserva == 1:
-            msg_exito = f"🎉 ¡Número {st.session_state.numeros_reserva[0]} reservado exitosamente!"
-            txt_nums_wa = f"Número:* {st.session_state.numeros_reserva[0]}"
-        else:
-            nums_texto = ", ".join(st.session_state.numeros_reserva)
-            msg_exito = f"🎉 ¡Números {nums_texto} reservados exitosamente!"
-            txt_nums_wa = f"Números:* {nums_texto}"
-            
-        st.success(msg_exito)
-        st.subheader("📲 Elige cómo pagar / enviar comprobante:")
+    st.write("---")
+    if st.button("🔄 Hacer otra reserva"):
+        st.session_state.reserva_confirmada = False
+        st.session_state.seleccionados_global = []
+        st.rerun()
 
-        bancos_sms = {
-            "Banco Nacional (BNCR)": "2627",
-            "Banco de Costa Rica (BCR)": "4066",
-            "BAC Credomatic": "70701222",
-            "Banco Promerica": "62232450"
-        }
-
-        banco_seleccionado = st.selectbox("Si pagas por SMS, selecciona tu banco:", list(bancos_sms.keys()))
-        numero_banco = bancos_sms[banco_seleccionado]
-        
-        texto_sms = f"PASE {int(st.session_state.total_reserva)} {num_limpio} Rifa"
-        texto_sms_codificado = urllib.parse.quote(texto_sms)
-        url_sms = f"sms:{numero_banco}?body={texto_sms_codificado}"
-
-        mensaje_wa = (
-            f"Hola! Acabo de reservar en la *{titulo_rifa}*:\n\n"
-            f"👤 *Nombre:* {st.session_state.nombre_reserva}\n"
-            f"🎟️ *{txt_nums_wa}\n"
-            f"💰 *Monto transferido:* ₡{st.session_state.total_reserva:,.0f} CRC\n\n"
-            f"Adjunto el comprobante del SINPE Móvil enviado al {num_sinpe}."
-        )
-        mensaje_wa_codificado = urllib.parse.quote(mensaje_wa)
-        url_whatsapp = f"https://wa.me/506{num_limpio}?text={mensaje_wa_codificado}"
-        
-        col_btn1, col_btn2 = st.columns(2)
-        
-        with col_btn1:
-            st.markdown(f"""
-                <a href="{url_sms}">
-                    <button style="background-color: #0056b3; color: white; border: none; padding: 14px 15px; font-size: 15px; font-weight: bold; border-radius: 8px; cursor: pointer; width: 100%; margin-bottom: 10px;">
-                        💬 Pagar vía SMS ({numero_banco})
-                    </button>
-                </a>
-            """, unsafe_allow_html=True)
-
-        with col_btn2:
-            st.markdown(f"""
-                <a href="{url_whatsapp}" target="_blank">
-                    <button style="background-color: #25D366; color: white; border: none; padding: 14px 15px; font-size: 15px; font-weight: bold; border-radius: 8px; cursor: pointer; width: 100%;">
-                        🟢 Confirmar por WhatsApp
-                    </button>
-                </a>
-            """, unsafe_allow_html=True)
+# --- VISTA 2: SELECCIÓN DE NÚMEROS (SI NO HA CONFIRMADO) ---
 else:
-    st.session_state.reserva_confirmada = False
-    st.warning("Selecciona al menos un número disponible para continuar.")
+    st.subheader("Elige tus números del 00 al 99")
+    st.write("---")
+
+    numeros_bloqueados = obtener_numeros_ocupados()
+
+    st.write("### 🔢 Selecciona tus números por decenas:")
+    st.caption("🔴 Indica número reservado/ocupado | ⚪ Número disponible")
+
+    rangos = [
+        "00 - 09", "10 - 19", "20 - 29", "30 - 39", "40 - 49",
+        "50 - 59", "60 - 69", "70 - 79", "80 - 89", "90 - 99"
+    ]
+
+    tabs = st.tabs(rangos)
+
+    for idx, tab in enumerate(tabs):
+        with tab:
+            inicio = idx * 10
+            
+            # Fila 1: primeros 5 números
+            cols_fila1 = st.columns(5)
+            for offset in range(5):
+                i = inicio + offset
+                num_str = f"{i:02d}"
+                with cols_fila1[offset]:
+                    if num_str in numeros_bloqueados:
+                        st.button(f"❌ {num_str}", key=f"btn_{num_str}", disabled=True)
+                    else:
+                        if st.checkbox(num_str, key=f"num_{num_str}"):
+                            if num_str not in st.session_state.seleccionados_global:
+                                st.session_state.seleccionados_global.append(num_str)
+                        else:
+                            if num_str in st.session_state.seleccionados_global:
+                                st.session_state.seleccionados_global.remove(num_str)
+
+            # Fila 2: siguientes 5 números
+            cols_fila2 = st.columns(5)
+            for offset in range(5, 10):
+                i = inicio + offset
+                num_str = f"{i:02d}"
+                with cols_fila2[offset - 5]:
+                    if num_str in numeros_bloqueados:
+                        st.button(f"❌ {num_str}", key=f"btn_{num_str}", disabled=True)
+                    else:
+                        if num_str in st.checkbox(num_str, key=f"num_{num_str}"):
+                            if num_str not in st.session_state.seleccionados_global:
+                                st.session_state.seleccionados_global.append(num_str)
+                        else:
+                            if num_str in st.session_state.seleccionados_global:
+                                st.session_state.seleccionados_global.remove(num_str)
+
+    numeros_seleccionados = sorted(st.session_state.seleccionados_global)
+
+    st.write("---")
+
+    if numeros_seleccionados:
+        total = len(numeros_seleccionados) * precio_numero
+        cant_seleccionados = len(numeros_seleccionados)
+        
+        etiqueta_elegidos = "Número elegido" if cant_seleccionados == 1 else "Números elegidos"
+        
+        st.success(f"**{etiqueta_elegidos} ({cant_seleccionados}):** {', '.join(numeros_seleccionados)}")
+        st.info(f"**Total a pagar:** ₡{total:,.0f} CRC")
+        
+        st.write("### 💳 Datos para pagar por SINPE Móvil")
+        st.write(f"**Titular:** {nombre_sinpe}")
+        
+        col_a, col_b = st.columns(2)
+        with col_a:
+            st.code(num_limpio, language="text")
+            st.caption("Copiar número SINPE")
+        with col_b:
+            st.code(f"{int(total)}", language="text")
+            st.caption("Copiar monto exacto")
+
+        st.write("---")
+        st.write("### 📋 Datos para la Reserva")
+        nombre_cliente = st.text_input("Tu Nombre Completo:", key="input_nombre")
+        telefono_cliente = st.text_input("Tu Número de Teléfono:", key="input_telefono")
+        
+        if st.button("🔒 Confirmar Reserva"):
+            if nombre_cliente.strip() != "" and telefono_cliente.strip() != "":
+                exitosos, fallidos = guardar_reserva(numeros_seleccionados, nombre_cliente, telefono_cliente)
+                
+                if fallidos:
+                    msg_fallidos = f"El número {fallidos[0]} ya había sido tomado." if len(fallidos) == 1 else f"Los siguientes números ya habían sido tomados: {', '.join(fallidos)}"
+                    st.error(msg_fallidos)
+                
+                if exitosos:
+                    st.session_state.reserva_confirmada = True
+                    st.session_state.numeros_reserva = exitosos
+                    st.session_state.total_reserva = total
+                    st.session_state.nombre_reserva = nombre_cliente
+                    st.rerun()
+            else:
+                st.error("Por favor completa tu nombre y número de teléfono antes de reservar.")
+    else:
+        st.warning("Selecciona al menos un número disponible para continuar.")
