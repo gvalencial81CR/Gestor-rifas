@@ -29,6 +29,7 @@ st.markdown(
 def conectar_db():
   conn = sqlite3.connect("rifa.db")
   c = conn.cursor()
+  # Tabla de reservas
   c.execute("""
         CREATE TABLE IF NOT EXISTS numeros_comprados (
             numero TEXT PRIMARY KEY,
@@ -37,8 +38,51 @@ def conectar_db():
             fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
+  # Tabla de configuración permanente
+  c.execute("""
+        CREATE TABLE IF NOT EXISTS configuracion (
+            clave TEXT PRIMARY KEY,
+            valor TEXT
+        )
+    """)
   conn.commit()
   return conn
+
+
+def obtener_configuracion():
+  conn = conectar_db()
+  c = conn.cursor()
+  c.execute("SELECT clave, valor FROM configuracion")
+  filas = c.fetchall()
+  conn.close()
+
+  config = {
+      "rifa_titulo": "🎟️ Gran Rifa Especial 🇨🇷",
+      "rifa_precio": "1000",
+      "sinpe_numero": "88888888",
+      "sinpe_nombre": "Juan Pérez",
+  }
+
+  for clave, valor in filas:
+    config[clave] = valor
+
+  return config
+
+
+def guardar_configuracion(titulo, precio, num_sinpe, nombre_sinpe):
+  conn = conectar_db()
+  c = conn.cursor()
+  datos = [
+      ("rifa_titulo", titulo),
+      ("rifa_precio", str(precio)),
+      ("sinpe_numero", num_sinpe),
+      ("sinpe_nombre", nombre_sinpe),
+  ]
+  c.executemany(
+      "INSERT OR REPLACE INTO configuracion (clave, valor) VALUES (?, ?)", datos
+  )
+  conn.commit()
+  conn.close()
 
 
 def obtener_numeros_ocupados():
@@ -92,21 +136,14 @@ def liberar_numero(numero):
   conn.close()
 
 
+# --- CARGAR CONFIGURACIÓN PERMANENTE ---
+config_actual = obtener_configuracion()
+
 # --- INICIALIZACIÓN DE ESTADO DE SESIÓN ---
 if "reserva_confirmada" not in st.session_state:
   st.session_state.reserva_confirmada = False
 if "seleccionados_global" not in st.session_state:
   st.session_state.seleccionados_global = []
-
-# Guardar valores por defecto en sesión solo la primera vez
-if "sinpe_numero" not in st.session_state:
-  st.session_state.sinpe_numero = "88888888"
-if "sinpe_nombre" not in st.session_state:
-  st.session_state.sinpe_nombre = "Juan Pérez"
-if "rifa_titulo" not in st.session_state:
-  st.session_state.rifa_titulo = "🎟️ Gran Rifa Especial 🇨🇷"
-if "rifa_precio" not in st.session_state:
-  st.session_state.rifa_precio = 1000
 
 # --- PANEL LATERAL CON FORMULARIO ---
 with st.sidebar:
@@ -115,14 +152,14 @@ with st.sidebar:
   with st.form("form_configuracion"):
     nuevo_titulo = st.text_input(
         "Nombre de la Rifa:",
-        value=st.session_state.rifa_titulo,
+        value=config_actual["rifa_titulo"],
         key="input_titulo",
     )
     fecha_sorteo = st.date_input("Fecha del Sorteo:", value=datetime.today())
     nuevo_precio = st.number_input(
         "Precio por número (₡ CRC):",
         min_value=100,
-        value=int(st.session_state.rifa_precio),
+        value=int(config_actual["rifa_precio"]),
         step=100,
         key="input_precio",
     )
@@ -131,25 +168,23 @@ with st.sidebar:
     st.header("📱 Datos de SINPE Móvil")
     nuevo_sinpe = st.text_input(
         "Tu Número de SINPE Móvil:",
-        value=st.session_state.sinpe_numero,
+        value=config_actual["sinpe_numero"],
         key="input_sinpe_num",
     )
     nuevo_nombre_sinpe = st.text_input(
         "Nombre Titular del SINPE:",
-        value=st.session_state.sinpe_nombre,
+        value=config_actual["sinpe_nombre"],
         key="input_sinpe_nom",
     )
 
     btn_guardar = st.form_submit_button("💾 Guardar Configuración")
 
     if btn_guardar:
-      st.session_state.rifa_titulo = nuevo_titulo
-      st.session_state.rifa_precio = nuevo_precio
-      st.session_state.sinpe_numero = (
-          nuevo_sinpe.replace("-", "").replace(" ", "").strip()
+      sinpe_limpio = nuevo_sinpe.replace("-", "").replace(" ", "").strip()
+      guardar_configuracion(
+          nuevo_titulo, nuevo_precio, sinpe_limpio, nuevo_nombre_sinpe
       )
-      st.session_state.sinpe_nombre = nuevo_nombre_sinpe
-      st.success("¡Configuración guardada correctamente!")
+      st.success("¡Configuración guardada permanentemente!")
       st.rerun()
 
   st.write("---")
@@ -185,12 +220,12 @@ with st.sidebar:
     elif clave_admin != "":
       st.error("Contraseña incorrecta")
 
-# Variables activas a nivel global en la app
+# Variables de configuración activas extraídas de la DB
 fecha_formateada = fecha_sorteo.strftime("%d/%m/%Y")
-titulo_rifa = st.session_state.rifa_titulo
-precio_numero = st.session_state.rifa_precio
-num_limpio = st.session_state.sinpe_numero
-nombre_sinpe = st.session_state.sinpe_nombre
+titulo_rifa = config_actual["rifa_titulo"]
+precio_numero = int(config_actual["rifa_precio"])
+num_limpio = config_actual["sinpe_numero"]
+nombre_sinpe = config_actual["sinpe_nombre"]
 
 # --- VISTA PRINCIPAL ---
 st.title(titulo_rifa)
