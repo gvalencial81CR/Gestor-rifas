@@ -39,6 +39,14 @@ st.markdown(
         text-align: center;
         margin-bottom: 15px;
     }
+    .premio-card {
+        border: 1px solid #e0e0e0;
+        padding: 10px;
+        border-radius: 10px;
+        text-align: center;
+        background-color: #ffffff;
+        margin-bottom: 10px;
+    }
     </style>
 """,
     unsafe_allow_html=True,
@@ -76,6 +84,18 @@ def conectar_db():
             valor TEXT
         )
     """)
+
+    # Tabla de Premios
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS premios (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            lugar TEXT,
+            nombre TEXT,
+            descripcion TEXT,
+            imagen_url TEXT
+        )
+    """)
+
     conn.commit()
     return conn
 
@@ -116,6 +136,35 @@ def guardar_configuracion(titulo, precio, num_sinpe, nombre_sinpe, fecha_str, to
     c.executemany(
         "INSERT OR REPLACE INTO configuracion (clave, valor) VALUES (?, ?)", datos
     )
+    conn.commit()
+    conn.close()
+
+
+# --- FUNCIONES PARA GESTIÓN DE PREMIOS ---
+def agregar_premio(lugar, nombre, descripcion, imagen_url):
+    conn = conectar_db()
+    c = conn.cursor()
+    c.execute(
+        "INSERT INTO premios (lugar, nombre, descripcion, imagen_url) VALUES (?, ?, ?, ?)",
+        (lugar, nombre, descripcion, imagen_url),
+    )
+    conn.commit()
+    conn.close()
+
+
+def obtener_premios():
+    conn = conectar_db()
+    c = conn.cursor()
+    c.execute("SELECT id, lugar, nombre, descripcion, imagen_url FROM premios ORDER BY id ASC")
+    filas = c.fetchall()
+    conn.close()
+    return filas
+
+
+def eliminar_premio(premio_id):
+    conn = conectar_db()
+    c = conn.cursor()
+    c.execute("DELETE FROM premios WHERE id = ?", (premio_id,))
     conn.commit()
     conn.close()
 
@@ -342,6 +391,38 @@ with st.sidebar:
         else:
             st.info("No hay reservas registradas por el momento.")
 
+        # --- GESTIÓN DE PREMIOS (ADMIN) ---
+        st.write("---")
+        st.write("### 🎁 Administración de Premios")
+        with st.form("form_nuevo_premio"):
+            premio_lugar = st.text_input("Lugar / Posición:", placeholder="Ej: 🥇 1er Lugar")
+            premio_nombre = st.text_input("Nombre del Premio:", placeholder="Ej: Pantalla Smart TV 55''")
+            premio_desc = st.text_area("Descripción:", placeholder="Marca LG 4K Ultra HD...")
+            premio_img = st.text_input("URL de Imagen:", placeholder="https://ejemplo.com/imagen.jpg")
+
+            btn_guardar_premio = st.form_submit_button("➕ Agregar Premio")
+
+            if btn_guardar_premio:
+                if premio_nombre.strip():
+                    agregar_premio(premio_lugar, premio_nombre, premio_desc, premio_img)
+                    st.success(f"¡Premio '{premio_nombre}' agregado!")
+                    st.rerun()
+                else:
+                    st.error("Ingresa al menos el nombre del premio.")
+
+        premios_registrados = obtener_premios()
+        if premios_registrados:
+            st.write("#### Premios Registrados:")
+            for p in premios_registrados:
+                p_id, p_lugar, p_nombre, p_desc, p_img = p
+                c_p1, c_p2 = st.columns([3, 1])
+                with c_p1:
+                    st.write(f"**{p_lugar}**: {p_nombre}")
+                with c_p2:
+                    if st.button("🗑️", key=f"del_p_{p_id}"):
+                        eliminar_premio(p_id)
+                        st.rerun()
+
         # --- ZONA PELIGROSA: REINICIAR / BORRAR RIFA COMPLETA ---
         st.write("---")
         st.write("#### ⚠️ Reiniciar / Borrar Rifa")
@@ -429,6 +510,27 @@ nombre_sinpe = config_actual["sinpe_nombre"]
 # --- VISTA PRINCIPAL ---
 st.title(titulo_rifa)
 st.caption(f"📅 **Fecha del Sorteo:** {fecha_formateada}")
+
+# 🎁 GALERÍA PÚBLICA DE PREMIOS
+lista_premios = obtener_premios()
+if lista_premios:
+    st.write("### 🎁 Premios a Sortear")
+    cols_premios = st.columns(min(len(lista_premios), 3))
+    for idx, p in enumerate(lista_premios):
+        _, p_lugar, p_nombre, p_desc, p_img = p
+        col_target = cols_premios[idx % 3]
+        with col_target:
+            with st.container():
+                st.markdown(f"#### {p_lugar}")
+                if p_img.strip():
+                    try:
+                        st.image(p_img, use_column_width=True)
+                    except Exception:
+                        st.caption("🖼️ (Imagen no disponible)")
+                st.markdown(f"**{p_nombre}**")
+                if p_desc.strip():
+                    st.caption(p_desc)
+    st.write("---")
 
 # ⚡ INDICADOR DE DISPONIBILIDAD Y URGENCIA
 mapa_numeros_actual = obtener_mapa_numeros_ocupados()
