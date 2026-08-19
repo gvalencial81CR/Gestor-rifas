@@ -19,6 +19,14 @@ st.markdown(
         font-weight: bold;
         border-radius: 8px;
     }
+    .metric-card {
+        background-color: #f8f9fa;
+        border: 1px solid #e9ecef;
+        padding: 12px;
+        border-radius: 10px;
+        text-align: center;
+        margin-bottom: 10px;
+    }
     </style>
 """,
     unsafe_allow_html=True,
@@ -97,13 +105,14 @@ def guardar_configuracion(titulo, precio, num_sinpe, nombre_sinpe):
   conn.close()
 
 
-def obtener_numeros_ocupados():
+def obtener_mapa_numeros_ocupados():
+  """Retorna un diccionario con los números ocupados y su estado de pago."""
   conn = conectar_db()
   c = conn.cursor()
-  c.execute("SELECT numero FROM numeros_comprados")
+  c.execute("SELECT numero, estado_pago FROM numeros_comprados")
   filas = c.fetchall()
   conn.close()
-  return [f[0] for f in filas]
+  return {f[0]: f[1] for f in filas}
 
 
 def guardar_reserva(numeros, nombre, telefono):
@@ -173,7 +182,51 @@ with st.sidebar:
   st.title("⚙️ Panel de Control")
 
   # -------------------------------------------------------------
-  # 🔑 SECCIÓN ADMIN Y ESTATUS DE PAGOS (AHORA VISIBLE DIRECTAMENTE)
+  # 📊 RESUMEN DE VENTAS Y PORCENTAJES (KPIs)
+  # -------------------------------------------------------------
+  mapa_ocupados = obtener_mapa_numeros_ocupados()
+  total_reservados = len(mapa_ocupados)
+  total_pagados = sum(
+      1 for est in mapa_ocupados.values() if "Pagado" in str(est)
+  )
+  total_pendientes = total_reservados - total_pagados
+
+  pct_ocupados = (total_reservados / 100) * 100
+  pct_pagados = (
+      (total_pagados / total_reservados * 100) if total_reservados > 0 else 0
+  )
+  pct_pendientes = (
+      (total_pendientes / total_reservados * 100) if total_reservados > 0 else 0
+  )
+
+  precio_num = int(config_actual["rifa_precio"])
+  recaudado = total_pagados * precio_num
+
+  st.markdown("### 📊 Resumen Ejecutivo de Ventas")
+
+  col_m1, col_m2 = st.columns(2)
+  with col_m1:
+    st.metric(
+        "Total Ocupados",
+        f"{total_reservados}/100",
+        delta=f"{pct_ocupados:.0f}% meta",
+    )
+    st.metric("✅ Pagados", f"{total_pagados}", delta=f"{pct_pagados:.0f}% del total")
+  with col_m2:
+    st.metric(
+        "⏳ Pendientes", f"{total_pendientes}", delta=f"{pct_pendientes:.0f}% del total"
+    )
+    st.metric("💰 Recaudado", f"₡{recaudado:,.0f}")
+
+  st.progress(total_reservados / 100)
+  st.caption(
+      f"Progreso de la Rifa: **{total_reservados}% vendido/reservado**"
+  )
+
+  st.write("---")
+
+  # -------------------------------------------------------------
+  # 🔑 MODO ADMINISTRADOR
   # -------------------------------------------------------------
   st.subheader("🔑 Modo Administrador")
   clave_admin = st.text_input(
@@ -186,10 +239,9 @@ with st.sidebar:
     df_reservas = obtener_todas_las_reservas()
 
     st.write("---")
-    st.write("### 📊 ESTATUS DE PAGOS")
+    st.write("### 📋 Tabla General de Reservas")
 
     if not df_reservas.empty:
-      # Mostrar la lista completa con los estatus
       st.dataframe(df_reservas, use_container_width=True)
 
       st.write("#### ✏️ Cambiar Estatus de Pago")
@@ -209,7 +261,9 @@ with st.sidebar:
 
       st.write("---")
       st.write("#### 🔓 Cancelar Reserva (Liberar)")
-      num_a_liberar = st.selectbox("Número a liberar:", lista_numeros, key="sel_num_liberar")
+      num_a_liberar = st.selectbox(
+          "Número a liberar:", lista_numeros, key="sel_num_liberar"
+      )
 
       if st.button("🔓 Liberar Número"):
         liberar_numero(num_a_liberar)
@@ -264,14 +318,8 @@ with st.sidebar:
         st.success("¡Configuración guardada!")
         st.rerun()
 
-  # Variables de fecha por si no abre el expander
   if "fecha_sorteo" not in locals():
     fecha_sorteo = datetime.today()
-
-  st.write("---")
-  st.write("### 📈 Ventas Totales")
-  ocupados = obtener_numeros_ocupados()
-  st.metric("Números Vendidos / Reservados", f"{len(ocupados)} / 100")
 
 # Variables de configuración activas
 fecha_formateada = fecha_sorteo.strftime("%d/%m/%Y")
@@ -376,10 +424,13 @@ else:
   st.subheader("Elige tus números del 00 al 99")
   st.write("---")
 
-  numeros_bloqueados = obtener_numeros_ocupados()
+  mapa_numeros = obtener_mapa_numeros_ocupados()
 
   st.write("### 🔢 Selecciona tus números por decenas:")
-  st.caption("🔴 Indica número reservado/ocupado | ⚪ Número disponible")
+  st.caption(
+      "🟢 **[PAGADO]** Número verificado | ❌ **Reservado** Pendiente de pago"
+      " | ⚪ **Disponible**"
+  )
 
   rangos = [
       "00 - 09",
@@ -400,13 +451,20 @@ else:
     with tab:
       inicio = idx * 10
 
+      # Fila 1 (5 botones)
       cols_fila1 = st.columns(5)
       for offset in range(5):
         i = inicio + offset
         num_str = f"{i:02d}"
         with cols_fila1[offset]:
-          if num_str in numeros_bloqueados:
-            st.button(f"❌ {num_str}", key=f"btn_{num_str}", disabled=True)
+          if num_str in mapa_numeros:
+            estatus = mapa_numeros[num_str]
+            etiqueta_btn = (
+                f"🟢 {num_str} [PAGADO]"
+                if "Pagado" in str(estatus)
+                else f"❌ {num_str}"
+            )
+            st.button(etiqueta_btn, key=f"btn_{num_str}", disabled=True)
           else:
             if st.checkbox(num_str, key=f"num_{num_str}"):
               if num_str not in st.session_state.seleccionados_global:
@@ -415,13 +473,20 @@ else:
               if num_str in st.session_state.seleccionados_global:
                 st.session_state.seleccionados_global.remove(num_str)
 
+      # Fila 2 (5 botones)
       cols_fila2 = st.columns(5)
       for offset in range(5, 10):
         i = inicio + offset
         num_str = f"{i:02d}"
         with cols_fila2[offset - 5]:
-          if num_str in numeros_bloqueados:
-            st.button(f"❌ {num_str}", key=f"btn_{num_str}", disabled=True)
+          if num_str in mapa_numeros:
+            estatus = mapa_numeros[num_str]
+            etiqueta_btn = (
+                f"🟢 {num_str} [PAGADO]"
+                if "Pagado" in str(estatus)
+                else f"❌ {num_str}"
+            )
+            st.button(etiqueta_btn, key=f"btn_{num_str}", disabled=True)
           else:
             if st.checkbox(num_str, key=f"num_{num_str}"):
               if num_str not in st.session_state.seleccionados_global:
