@@ -50,88 +50,154 @@ def conectar_db():
     conn = sqlite3.connect("rifa.db")
     c = conn.cursor()
 
-    # Tabla de reservas (con estado_pago)
+    # Tabla de rifas
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS rifas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            titulo TEXT,
+            precio TEXT,
+            sinpe_numero TEXT,
+            sinpe_nombre TEXT,
+            fecha_sorteo TEXT,
+            total_numeros TEXT
+        )
+    """)
+
+    # Tabla de reservas asociadas a una rifa específica
     c.execute("""
         CREATE TABLE IF NOT EXISTS numeros_comprados (
-            numero TEXT PRIMARY KEY,
+            rifa_id INTEGER,
+            numero TEXT,
             comprador TEXT,
             telefono TEXT,
             estado_pago TEXT DEFAULT 'Pendiente',
-            fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (rifa_id, numero),
+            FOREIGN KEY (rifa_id) REFERENCES rifas (id)
         )
     """)
 
-    try:
-        c.execute(
-            "ALTER TABLE numeros_comprados ADD COLUMN estado_pago TEXT DEFAULT"
-            " 'Pendiente'"
-        )
-    except sqlite3.OperationalError:
-        pass
-
-    # Tabla de configuración permanente
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS configuracion (
-            clave TEXT PRIMARY KEY,
-            valor TEXT
-        )
-    """)
     conn.commit()
-    return conn
 
+    # Si no existe ninguna rifa, creamos una inicial por defecto
+    c.execute("SELECT COUNT(*) FROM rifas")
+    if c.fetchone()[0] == 0:
+        c.execute(
+            """
+            INSERT INTO rifas (titulo, precio, sinpe_numero, sinpe_nombre, fecha_sorteo, total_numeros)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """,
+            (
+                "🎟️ Gran Rifa Especial 🇨🇷",
+                "1000",
+                "88888888",
+                "Juan Pérez",
+                datetime.today().strftime("%Y-%m-%d"),
+                "100",
+            ),
+        )
+        conn.commit()
 
-def obtener_configuracion():
-    conn = conectar_db()
-    c = conn.cursor()
-    c.execute("SELECT clave, valor FROM configuracion")
-    filas = c.fetchall()
     conn.close()
 
-    config = {
-        "rifa_titulo": "🎟️ Gran Rifa Especial 🇨🇷",
-        "rifa_precio": "1000",
-        "sinpe_numero": "88888888",
-        "sinpe_nombre": "Juan Pérez",
-        "rifa_fecha_sorteo": datetime.today().strftime("%Y-%m-%d"),
-        "total_numeros": "100",
-    }
 
-    for clave, valor in filas:
-        config[clave] = valor
-
-    return config
-
-
-def guardar_configuracion(titulo, precio, num_sinpe, nombre_sinpe, fecha_str, total_nums):
-    conn = conectar_db()
+def obtener_todas_las_rifas():
+    conn = sqlite3.connect("rifa.db")
     c = conn.cursor()
-    datos = [
-        ("rifa_titulo", titulo),
-        ("rifa_precio", str(precio)),
-        ("sinpe_numero", num_sinpe),
-        ("sinpe_nombre", nombre_sinpe),
-        ("rifa_fecha_sorteo", fecha_str),
-        ("total_numeros", str(total_nums)),
-    ]
-    c.executemany(
-        "INSERT OR REPLACE INTO configuracion (clave, valor) VALUES (?, ?)", datos
+    c.execute("SELECT id, titulo FROM rifas ORDER BY id DESC")
+    filas = c.fetchall()
+    conn.close()
+    return filas
+
+
+def obtener_configuracion_rifa(rifa_id):
+    conn = sqlite3.connect("rifa.db")
+    c = conn.cursor()
+    c.execute(
+        "SELECT id, titulo, precio, sinpe_numero, sinpe_nombre, fecha_sorteo,"
+        " total_numeros FROM rifas WHERE id = ?",
+        (rifa_id,),
+    )
+    fila = c.fetchone()
+    conn.close()
+
+    if fila:
+        return {
+            "id": fila[0],
+            "rifa_titulo": fila[1],
+            "rifa_precio": fila[2],
+            "sinpe_numero": fila[3],
+            "sinpe_nombre": fila[4],
+            "rifa_fecha_sorteo": fila[5],
+            "total_numeros": fila[6],
+        }
+    return None
+
+
+def crear_nueva_rifa(
+    titulo, precio, num_sinpe, nombre_sinpe, fecha_str, total_nums
+):
+    conn = sqlite3.connect("rifa.db")
+    c = conn.cursor()
+    c.execute(
+        """
+        INSERT INTO rifas (titulo, precio, sinpe_numero, sinpe_nombre, fecha_sorteo, total_numeros)
+        VALUES (?, ?, ?, ?, ?, ?)
+    """,
+        (
+            titulo,
+            str(precio),
+            num_sinpe,
+            nombre_sinpe,
+            fecha_str,
+            str(total_nums),
+        ),
+    )
+    nueva_id = c.lastrowid
+    conn.commit()
+    conn.close()
+    return nueva_id
+
+
+def actualizar_configuracion_rifa(
+    rifa_id, titulo, precio, num_sinpe, nombre_sinpe, fecha_str, total_nums
+):
+    conn = sqlite3.connect("rifa.db")
+    c = conn.cursor()
+    c.execute(
+        """
+        UPDATE rifas 
+        SET titulo = ?, precio = ?, sinpe_numero = ?, sinpe_nombre = ?, fecha_sorteo = ?, total_numeros = ?
+        WHERE id = ?
+    """,
+        (
+            titulo,
+            str(precio),
+            num_sinpe,
+            nombre_sinpe,
+            fecha_str,
+            str(total_nums),
+            rifa_id,
+        ),
     )
     conn.commit()
     conn.close()
 
 
-def obtener_mapa_numeros_ocupados():
-    """Retorna un diccionario con los números ocupados y su estado de pago."""
-    conn = conectar_db()
+def obtener_mapa_numeros_ocupados(rifa_id):
+    conn = sqlite3.connect("rifa.db")
     c = conn.cursor()
-    c.execute("SELECT numero, estado_pago FROM numeros_comprados")
+    c.execute(
+        "SELECT numero, estado_pago FROM numeros_comprados WHERE rifa_id = ?",
+        (rifa_id,),
+    )
     filas = c.fetchall()
     conn.close()
     return {f[0]: f[1] for f in filas}
 
 
-def guardar_reserva(numeros, nombre, telefono):
-    conn = conectar_db()
+def guardar_reserva(rifa_id, numeros, nombre, telefono):
+    conn = sqlite3.connect("rifa.db")
     c = conn.cursor()
     exitosos = []
     fallidos = []
@@ -139,9 +205,9 @@ def guardar_reserva(numeros, nombre, telefono):
     for num in numeros:
         try:
             c.execute(
-                "INSERT INTO numeros_comprados (numero, comprador, telefono,"
-                " estado_pago) VALUES (?, ?, ?, 'Pendiente')",
-                (num, nombre, telefono),
+                "INSERT INTO numeros_comprados (rifa_id, numero, comprador,"
+                " telefono, estado_pago) VALUES (?, ?, ?, ?, 'Pendiente')",
+                (rifa_id, num, nombre, telefono),
             )
             exitosos.append(num)
         except sqlite3.IntegrityError:
@@ -152,40 +218,52 @@ def guardar_reserva(numeros, nombre, telefono):
     return exitosos, fallidos
 
 
-def obtener_todas_las_reservas():
-    conn = conectar_db()
-    query = (
-        "SELECT numero AS 'Número', comprador AS 'Comprador', telefono AS"
-        " 'Teléfono', estado_pago AS 'Estatus Pago', fecha AS 'Fecha Reserva'"
-        " FROM numeros_comprados ORDER BY CAST(numero AS INTEGER) ASC"
-    )
+def obtener_todas_las_reservas(rifa_id):
+    conn = sqlite3.connect("rifa.db")
+    query = f"""
+        SELECT numero AS 'Número', comprador AS 'Comprador', telefono AS 'Teléfono', estado_pago AS 'Estatus Pago', fecha AS 'Fecha Reserva'
+        FROM numeros_comprados 
+        WHERE rifa_id = {rifa_id}
+        ORDER BY CAST(numero AS INTEGER) ASC
+    """
     df = pd.read_sql_query(query, conn)
     conn.close()
     return df
 
 
-def cambiar_estado_pago(numero, nuevo_estado):
-    conn = conectar_db()
+def cambiar_estado_pago(rifa_id, numero, nuevo_estado):
+    conn = sqlite3.connect("rifa.db")
     c = conn.cursor()
     c.execute(
-        "UPDATE numeros_comprados SET estado_pago = ? WHERE numero = ?",
-        (nuevo_estado, numero),
+        "UPDATE numeros_comprados SET estado_pago = ? WHERE rifa_id = ? AND"
+        " numero = ?",
+        (nuevo_estado, rifa_id, numero),
     )
     conn.commit()
     conn.close()
 
 
-def liberar_numero(numero):
-    conn = conectar_db()
+def liberar_numero(rifa_id, numero):
+    conn = sqlite3.connect("rifa.db")
     c = conn.cursor()
-    c.execute("DELETE FROM numeros_comprados WHERE numero = ?", (numero,))
+    c.execute(
+        "DELETE FROM numeros_comprados WHERE rifa_id = ? AND numero = ?",
+        (rifa_id, numero),
+    )
     conn.commit()
     conn.close()
 
 
-# --- CARGAR CONFIGURACIÓN PERMANENTE ---
-config_actual = obtener_configuracion()
-total_numeros_config = int(config_actual.get("total_numeros", 100))
+# Inicializar DB
+conectar_db()
+lista_rifas = obtener_todas_las_rifas()
+
+# Rifa activa en la sesión por defecto (la más reciente)
+if "rifa_activa_id" not in st.session_state:
+    st.session_state.rifa_activa_id = lista_rifas[0][0]
+
+config_actual = obtener_configuracion_rifa(st.session_state.rifa_activa_id)
+total_numeros_config = int(config_actual["total_numeros"])
 
 # --- INICIALIZACIÓN DE ESTADO DE SESIÓN ---
 if "reserva_confirmada" not in st.session_state:
@@ -193,7 +271,6 @@ if "reserva_confirmada" not in st.session_state:
 if "seleccionados_global" not in st.session_state:
     st.session_state.seleccionados_global = []
 
-# Parsear fecha guardada
 try:
     fecha_sorteo_db = datetime.strptime(
         config_actual["rifa_fecha_sorteo"], "%Y-%m-%d"
@@ -205,8 +282,79 @@ except (KeyError, ValueError):
 with st.sidebar:
     st.title("⚙️ Panel de Control")
 
+    # Selector de Rifa Activa
+    opciones_rifas = {r[1]: r[0] for r in lista_rifas}
+    rifa_seleccionada_nombre = st.selectbox(
+        "🎯 Seleccionar Rifa Activa:",
+        options=list(opciones_rifas.keys()),
+        index=0,
+    )
+    rifa_id_seleccionada = opciones_rifas[rifa_seleccionada_nombre]
+
+    if rifa_id_seleccionada != st.session_state.rifa_activa_id:
+        st.session_state.rifa_activa_id = rifa_id_seleccionada
+        st.session_state.reserva_confirmada = False
+        st.session_state.seleccionados_global = []
+        st.rerun()
+
+    st.write("---")
+
     # -------------------------------------------------------------
-    # 🔑 MODO ADMINISTRADOR (SOLO VISIBLE CON CONTRASEÑA)
+    # ➕ CREAR UNA NUEVA RIFA
+    # -------------------------------------------------------------
+    with st.expander("➕ Crear Nueva Rifa"):
+        with st.form("form_nueva_rifa"):
+            nuevo_titulo_crear = st.text_input(
+                "Nombre de la nueva rifa:",
+                placeholder="Ej. Rifa Navideña 2026",
+            )
+            fecha_sorteo_crear = st.date_input("Fecha del Sorteo:", value=date.today())
+            nuevo_precio_crear = st.number_input(
+                "Precio por número (₡ CRC):",
+                min_value=100,
+                value=1000,
+                step=100,
+            )
+            nuevo_total_numeros_crear = st.number_input(
+                "Cantidad total de números:",
+                min_value=10,
+                max_value=1000,
+                value=100,
+                step=10,
+            )
+            nuevo_sinpe_crear = st.text_input(
+                "Número SINPE:", value=config_actual["sinpe_numero"]
+            )
+            nuevo_nombre_sinpe_crear = st.text_input(
+                "Titular SINPE:", value=config_actual["sinpe_nombre"]
+            )
+
+            btn_crear_rifa = st.form_submit_button("🚀 Crear Rifa")
+
+            if btn_crear_rifa:
+                if nuevo_titulo_crear.strip() == "":
+                    st.error("Ingresa un nombre para la nueva rifa.")
+                else:
+                    sinpe_limpio = (
+                        nuevo_sinpe_crear.replace("-", "").replace(" ", "").strip()
+                    )
+                    fecha_str = fecha_sorteo_crear.strftime("%Y-%m-%d")
+                    nueva_id = crear_nueva_rifa(
+                        nuevo_titulo_crear,
+                        nuevo_precio_crear,
+                        sinpe_limpio,
+                        nuevo_nombre_sinpe_crear,
+                        fecha_str,
+                        nuevo_total_numeros_crear,
+                    )
+                    st.session_state.rifa_activa_id = nueva_id
+                    st.session_state.reserva_confirmada = False
+                    st.session_state.seleccionados_global = []
+                    st.success(f"¡Rifa '{nuevo_titulo_crear}' creada!")
+                    st.rerun()
+
+    # -------------------------------------------------------------
+    # 🔑 MODO ADMINISTRADOR
     # -------------------------------------------------------------
     st.subheader("🔑 Modo Administrador")
     clave_admin = st.text_input(
@@ -216,8 +364,9 @@ with st.sidebar:
     if clave_admin == "1234":
         st.success("✅ Acceso Concedido")
 
-        # 📊 RESUMEN DE VENTAS Y PORCENTAJES (KPIs) - SOLO ADMIN
-        mapa_ocupados = obtener_mapa_numeros_ocupados()
+        mapa_ocupados = obtener_mapa_numeros_ocupados(
+            st.session_state.rifa_activa_id
+        )
         total_reservados = len(mapa_ocupados)
         total_pagados = sum(
             1 for est in mapa_ocupados.values() if "Pagado" in str(est)
@@ -259,17 +408,15 @@ with st.sidebar:
             st.metric("💰 Recaudado", f"₡{recaudado:,.0f}")
 
         st.progress(min(total_reservados / total_numeros_config, 1.0))
-        st.caption(
-            f"Progreso de la Rifa: **{pct_ocupados:.1f}% vendido/reservado**"
-        )
 
-        df_reservas = obtener_todas_las_reservas()
+        df_reservas = obtener_todas_las_reservas(
+            st.session_state.rifa_activa_id
+        )
 
         st.write("---")
         st.write("### 📋 Tabla General de Reservas")
 
         if not df_reservas.empty:
-            # 🔍 FILTROS Y BÚSQUEDA EN TABLA DE ADMIN
             col_f1, col_f2 = st.columns([1, 1])
             with col_f1:
                 filtro_estado = st.selectbox(
@@ -295,7 +442,6 @@ with st.sidebar:
 
             st.dataframe(df_filtrado, use_container_width=True)
 
-            # 📥 EXPORTAR A EXCEL / CSV
             csv_data = df_reservas.to_csv(index=False).encode("utf-8")
             st.download_button(
                 label="📥 Descargar Lista Completa (CSV)",
@@ -318,8 +464,10 @@ with st.sidebar:
             )
 
             if st.button("💾 Guardar Estatus"):
-                cambiar_estado_pago(num_a_pagar, nuevo_est)
-                st.success(f"¡Número {num_a_pagar} actualizado a {nuevo_est}!")
+                cambiar_estado_pago(
+                    st.session_state.rifa_activa_id, num_a_pagar, nuevo_est
+                )
+                st.success(f"¡Número {num_a_pagar} actualizado!")
                 st.rerun()
 
             st.write("---")
@@ -329,11 +477,11 @@ with st.sidebar:
             )
 
             if st.button("🔓 Liberar Número"):
-                liberar_numero(num_a_liberar)
+                liberar_numero(st.session_state.rifa_activa_id, num_a_liberar)
                 st.success(f"¡Número {num_a_liberar} liberado!")
                 st.rerun()
         else:
-            st.info("No hay reservas registradas por el momento.")
+            st.info("No hay reservas en esta rifa.")
 
         st.write("---")
 
@@ -341,9 +489,9 @@ with st.sidebar:
         st.error("Contraseña incorrecta")
 
     # -------------------------------------------------------------
-    # CONFIGURACIÓN DE LA RIFA
+    # EDICIÓN DE LA RIFA ACTUAL
     # -------------------------------------------------------------
-    with st.expander("⚙️ Configuración de la Rifa (SINPE / Nombre)"):
+    with st.expander("⚙️ Editar Rifa Actual"):
         with st.form("form_configuracion"):
             nuevo_titulo = st.text_input(
                 "Nombre de la Rifa:",
@@ -379,14 +527,15 @@ with st.sidebar:
                 key="input_sinpe_nom",
             )
 
-            btn_guardar = st.form_submit_button("💾 Guardar Configuración")
+            btn_guardar = st.form_submit_button("💾 Guardar Cambios")
 
             if btn_guardar:
                 sinpe_limpio = (
                     nuevo_sinpe.replace("-", "").replace(" ", "").strip()
                 )
                 fecha_str = fecha_sorteo.strftime("%Y-%m-%d")
-                guardar_configuracion(
+                actualizar_configuracion_rifa(
+                    st.session_state.rifa_activa_id,
                     nuevo_titulo,
                     nuevo_precio,
                     sinpe_limpio,
@@ -394,7 +543,7 @@ with st.sidebar:
                     fecha_str,
                     nuevo_total_numeros,
                 )
-                st.success("¡Configuración guardada!")
+                st.success("¡Rifa actualizada!")
                 st.rerun()
 
 # Variables de configuración activas
@@ -408,8 +557,10 @@ nombre_sinpe = config_actual["sinpe_nombre"]
 st.title(titulo_rifa)
 st.caption(f"📅 **Fecha del Sorteo:** {fecha_formateada}")
 
-# ⚡ INDICADOR DE DISPONIBILIDAD Y URGENCIA
-mapa_numeros_actual = obtener_mapa_numeros_ocupados()
+# INDICADOR DE DISPONIBILIDAD
+mapa_numeros_actual = obtener_mapa_numeros_ocupados(
+    st.session_state.rifa_activa_id
+)
 disponibles_count = total_numeros_config - len(mapa_numeros_actual)
 
 if disponibles_count <= (total_numeros_config * 0.2) and disponibles_count > 0:
@@ -417,16 +568,15 @@ if disponibles_count <= (total_numeros_config * 0.2) and disponibles_count > 0:
 else:
     st.info(f"🎟️ **Números disponibles:** {disponibles_count} de {total_numeros_config}")
 
-# 📜 REGLAMENTO / TÉRMINOS Y CONDICIONES
+# REGLAMENTO
 with st.expander("📜 Reglamento y Términos de la Rifa"):
     st.markdown(f"""
     * **Valor del boleto:** ₡{precio_numero:,.0f} CRC cada número.
-    * **Pago vía SINPE Móvil:** Al realizar la reserva, debes transferir el monto exacto al **{num_limpio}** a nombre de **{nombre_sinpe}**.
-    * **Confirmación:** Envía el comprobante de pago vía WhatsApp para confirmar tu número.
-    * **Plazo máximo:** Las reservas no pagadas en un plazo razonable podrán ser liberadas.
+    * **Pago vía SINPE Móvil:** Transferir el monto exacto al **{num_limpio}** a nombre de **{nombre_sinpe}**.
+    * **Confirmación:** Envía el comprobante vía WhatsApp para confirmar tu número.
     """)
 
-# --- VISTA 1: SI YA SE CONFIRMÓ LA RESERVA ---
+# --- VISTA 1: RESERVA CONFIRMADA ---
 if st.session_state.reserva_confirmada:
     st.balloons()
 
@@ -444,7 +594,6 @@ if st.session_state.reserva_confirmada:
 
     st.success(msg_exito)
 
-    # 🎫 COMPROBANTE DIGITAL DE RESERVA
     st.markdown(
         f"""
     <div class="ticket-box">
@@ -460,7 +609,7 @@ if st.session_state.reserva_confirmada:
     )
 
     st.write("---")
-    st.subheader("📲 Elige tu método para pagar / enviar comprobante:")
+    st.subheader("📲 Método de Pago / Comprobante:")
 
     bancos_sms = {
         "Banco Nacional (BNCR)": "2627",
@@ -473,12 +622,10 @@ if st.session_state.reserva_confirmada:
         "Si pagas por SMS, selecciona tu banco:", list(bancos_sms.keys())
     )
     numero_banco = bancos_sms[banco_seleccionado]
-
     sinpe_final = st.session_state.sinpe_reserva
 
     texto_sms = f"PASE {int(st.session_state.total_reserva)} {sinpe_final} Rifa"
-    texto_sms_codificado = urllib.parse.quote(texto_sms)
-    url_sms = f"sms:{numero_banco}?body={texto_sms_codificado}"
+    url_sms = f"sms:{numero_banco}?body={urllib.parse.quote(texto_sms)}"
 
     mensaje_wa = (
         f"Hola! Acabo de reservar en la *{st.session_state.titulo_reserva}*:\n\n"
@@ -486,34 +633,26 @@ if st.session_state.reserva_confirmada:
         f"📅 *Fecha del sorteo:* {st.session_state.fecha_reserva}\n"
         f"🎟️ *{txt_nums_wa}\n"
         f"💰 *Monto transferido:* ₡{st.session_state.total_reserva:,.0f} CRC\n\n"
-        f"Adjunto el comprobante del SINPE Móvil enviado al {sinpe_final}."
+        f"Adjunto comprobante enviado al {sinpe_final}."
     )
-    mensaje_wa_codificado = urllib.parse.quote(mensaje_wa)
-    url_whatsapp = f"https://wa.me/506{sinpe_final}?text={mensaje_wa_codificado}"
+    url_whatsapp = f"https://wa.me/506{sinpe_final}?text={urllib.parse.quote(mensaje_wa)}"
 
     col_btn1, col_btn2 = st.columns(2)
-
     with col_btn1:
         st.markdown(
-            f"""
-            <a href="{url_sms}">
-                <button style="background-color: #0056b3; color: white; border: none; padding: 14px 15px; font-size: 15px; font-weight: bold; border-radius: 8px; cursor: pointer; width: 100%; margin-bottom: 10px;">
-                    💬 Pagar vía SMS ({numero_banco})
-                </button>
-            </a>
-            """,
+            f'<a href="{url_sms}"><button style="background-color: #0056b3;'
+            " color: white; border: none; padding: 14px 15px; font-size: 15px;"
+            " font-weight: bold; border-radius: 8px; cursor: pointer; width:"
+            ' 100%;">💬 Pagar por SMS</button></a>',
             unsafe_allow_html=True,
         )
-
     with col_btn2:
         st.markdown(
-            f"""
-            <a href="{url_whatsapp}" target="_blank">
-                <button style="background-color: #25D366; color: white; border: none; padding: 14px 15px; font-size: 15px; font-weight: bold; border-radius: 8px; cursor: pointer; width: 100%;">
-                    🟢 Confirmar por WhatsApp
-                </button>
-            </a>
-            """,
+            f'<a href="{url_whatsapp}" target="_blank"><button'
+            ' style="background-color: #25D366; color: white; border: none;'
+            " padding: 14px 15px; font-size: 15px; font-weight: bold;"
+            ' border-radius: 8px; cursor: pointer; width: 100%;">🟢 Confirmar'
+            " por WhatsApp</button></a>",
             unsafe_allow_html=True,
         )
 
@@ -523,20 +662,18 @@ if st.session_state.reserva_confirmada:
         st.session_state.seleccionados_global = []
         st.rerun()
 
-# --- VISTA 2: SELECCIÓN DE NÚMEROS (SI NO HA CONFIRMADO) ---
+# --- VISTA 2: SELECCIÓN DE NÚMEROS ---
 else:
     st.subheader(f"Elige tus números (del 00 al {total_numeros_config - 1:02d})")
     st.write("---")
 
-    mapa_numeros = obtener_mapa_numeros_ocupados()
-
-    st.write("### 🔢 Selecciona tus números por decenas:")
-    st.caption(
-        "✅ **Confirmado (Pagado)** | ❌ **Reservado (Pendiente)** | ⚪"
-        " **Disponible**"
+    mapa_numeros = obtener_mapa_numeros_ocupados(
+        st.session_state.rifa_activa_id
     )
 
-    # Generación dinámica de rangos de 10 en 10
+    st.write("### 🔢 Selecciona tus números por decenas:")
+    st.caption("✅ **Confirmado** | ❌ **Reservado** | ⚪ **Disponible**")
+
     rangos = []
     bloques = []
     for i in range(0, total_numeros_config, 10):
@@ -551,7 +688,6 @@ else:
             inicio, fin = bloques[idx]
             numeros_bloque = list(range(inicio, fin + 1))
 
-            # Renderizado en filas de 5 elementos
             for row_start in range(0, len(numeros_bloque), 5):
                 fila_nums = numeros_bloque[row_start : row_start + 5]
                 cols = st.columns(len(fila_nums))
@@ -598,7 +734,6 @@ else:
         etiqueta_elegidos = (
             "Número elegido" if cant_seleccionados == 1 else "Números elegidos"
         )
-
         st.success(
             f"**{etiqueta_elegidos} ({cant_seleccionados}):**"
             f" {', '.join(numeros_seleccionados)}"
@@ -632,37 +767,28 @@ else:
                 telefono_cliente.strip().replace(" ", "").replace("-", "")
             )
 
-            # Validación del Nombre: Permite letras, espacios y caracteres con tilde o Ñ
             es_nombre_valido = bool(
                 re.match(r"^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$", nombre_limpio)
             )
-
-            # Validación del Teléfono: Exactamente 8 dígitos numéricos
             es_telefono_valido = bool(re.match(r"^\d{8}$", telefono_limpio))
 
             if not es_nombre_valido:
-                st.error(
-                    "⚠️ Por favor ingresa un nombre válido (solo letras, sin números ni"
-                    " símbolos)."
-                )
+                st.error("⚠️ Ingresa un nombre válido (solo letras y espacios).")
             elif not es_telefono_valido:
-                st.error(
-                    "⚠️ El teléfono debe contener **únicamente números** y tener"
-                    " **exactamente 8 dígitos**."
-                )
+                st.error("⚠️ El teléfono debe tener exactamente 8 dígitos.")
             else:
                 exitosos, fallidos = guardar_reserva(
-                    numeros_seleccionados, nombre_limpio, telefono_limpio
+                    st.session_state.rifa_activa_id,
+                    numeros_seleccionados,
+                    nombre_limpio,
+                    telefono_limpio,
                 )
 
                 if fallidos:
-                    msg_fallidos = (
-                        f"El número {fallidos[0]} ya había sido tomado."
-                        if len(fallidos) == 1
-                        else "Los siguientes números ya habían sido tomados:"
-                             f" {', '.join(fallidos)}"
+                    st.error(
+                        "Algunos números ya fueron tomados:"
+                        f" {', '.join(fallidos)}"
                     )
-                    st.error(msg_fallidos)
 
                 if exitosos:
                     st.session_state.reserva_confirmada = True
@@ -677,7 +803,7 @@ else:
         st.warning("Selecciona al menos un número disponible para continuar.")
 
 # -------------------------------------------------------------
-# 🔗 OPCIÓN DISCRETA AL FINAL DE PÁGINA PARA COMPARTIR
+# 🔗 OPCIÓN DISCRETA AL FINAL DE PÁGINA
 # -------------------------------------------------------------
 st.markdown("---")
 st.caption("🔗 **Compartir esta rifa:**")
@@ -690,9 +816,7 @@ link_wa_invitacion = (
 col_share1, col_share2 = st.columns([1, 2])
 
 with col_share1:
-    st.link_button(
-        "📲 WhatsApp", link_wa_invitacion, use_container_width=True
-    )
+    st.link_button("📲 WhatsApp", link_wa_invitacion, use_container_width=True)
 
 with col_share2:
     st.code(URL_APP, language="text")
