@@ -6,7 +6,9 @@ import streamlit as st
 import re
 import base64
 
-# --- CONFIGURACIÓN DE PÁGINA ---
+# ==========================================
+# 1. CONFIGURACIÓN DE PÁGINA
+# ==========================================
 st.set_page_config(
     page_title="Gestor de Rifas CR 🇨🇷", 
     layout="centered", 
@@ -16,47 +18,76 @@ st.set_page_config(
 # Configura aquí tu URL desplegada
 URL_APP = "https://tu-app-de-rifa.streamlit.app"
 
-# --- ESTILOS CSS PERSONALIZADOS ---
+# ==========================================
+# 2. ESTILOS CSS PERSONALIZADOS DETALLADOS
+# ==========================================
 st.markdown(
     """
     <style>
+    /* Botones generales */
     .stButton>button {
         width: 100%;
-        height: 3em;
+        height: 3.2em;
         font-weight: bold;
-        border-radius: 8px;
+        border-radius: 10px;
+        transition: all 0.2s ease-in-out;
     }
+    
+    /* Tarjeta de Premio */
     .premio-card {
         border: 2px solid #e0e0e0;
-        padding: 20px;
-        border-radius: 15px;
-        background-color: #ffffff;
-        margin-bottom: 20px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        padding: 24px;
+        border-radius: 18px;
+        background: linear-gradient(135deg, #ffffff 0%, #f9fbfd 100%);
+        margin-bottom: 25px;
+        box-shadow: 0 6px 12px rgba(0,0,0,0.08);
     }
+    
+    /* Caja Comprobante de Reserva */
     .ticket-box {
         border: 2px dashed #0056b3;
-        background-color: #eef6ff;
-        padding: 20px;
-        border-radius: 12px;
+        background-color: #f0f7ff;
+        padding: 24px;
+        border-radius: 14px;
         text-align: center;
-        margin-bottom: 20px;
+        margin-top: 15px;
+        margin-bottom: 25px;
     }
+    .ticket-box h3 {
+        color: #0056b3;
+        margin-bottom: 12px;
+    }
+    
+    /* Estilos para las Pestañas (Tabs) */
     .stTabs [data-baseweb="tab-list"] {
-        gap: 10px;
+        gap: 8px;
     }
     .stTabs [data-baseweb="tab"] {
-        height: 50px;
+        height: 48px;
         white-space: pre-wrap;
-        background-color: #f0f2f6;
-        border-radius: 8px 8px 0px 0px;
-        padding-top: 10px;
-        padding-bottom: 10px;
+        background-color: #f1f3f5;
+        border-radius: 10px 10px 0px 0px;
+        padding-top: 8px;
+        padding-bottom: 8px;
         font-weight: bold;
+        color: #495057;
     }
     .stTabs [aria-selected="true"] {
         background-color: #0056b3 !important;
         color: white !important;
+    }
+    
+    /* Botón flotante o destacado de WhatsApp */
+    .btn-whatsapp {
+        background-color: #25D366;
+        color: white;
+        text-align: center;
+        padding: 12px;
+        font-weight: bold;
+        border-radius: 10px;
+        text-decoration: none;
+        display: block;
+        margin-top: 10px;
     }
     </style>
 """,
@@ -64,7 +95,9 @@ st.markdown(
 )
 
 
-# --- CONEXIÓN Y BASE DE DATOS ---
+# ==========================================
+# 3. BASE DE DATOS Y FUNCIONES DE SOPORTE
+# ==========================================
 def conectar_db():
     conn = sqlite3.connect("rifa_v3.db")
     c = conn.cursor()
@@ -242,7 +275,9 @@ def reiniciar_rifa():
     conn.close()
 
 
-# --- CARGAR CONFIGURACIÓN PERMANENTE ---
+# ==========================================
+# 4. CARGA DE CONFIGURACIÓN E INICIALIZACIÓN
+# ==========================================
 config_actual = obtener_configuracion()
 try:
     total_numeros_config = int(config_actual.get("total_numeros", 100))
@@ -261,88 +296,107 @@ except (KeyError, ValueError):
 
 fecha_formateada = fecha_sorteo_db.strftime("%d/%m/%Y")
 
-# --- INICIALIZACIÓN DE ESTADO ---
+# Estados de sesión
 if "reserva_confirmada" not in st.session_state:
     st.session_state.reserva_confirmada = False
 if "seleccionados_global" not in st.session_state:
     st.session_state.seleccionados_global = []
 
-# --- ENCABEZADO PRINCIPAL ---
-st.title(titulo_rifa)
-st.caption(f"📅 **Fecha del Sorteo:** {fecha_formateada} | 🎟️ **Valor del número:** ₡{precio_numero:,.0f} CRC")
 
-# --- PESTAÑAS PRINCIPALES ---
+# ==========================================
+# 5. CABECERA PRINCIPAL
+# ==========================================
+st.title(titulo_rifa)
+st.markdown(f"🗓️ **Fecha de la Rifa:** {fecha_formateada} | 💰 **Precio por número:** ₡{precio_numero:,.0f} CRC")
+st.write("---")
+
+
+# ==========================================
+# 6. PESTAÑAS DE NAVEGACIÓN
+# ==========================================
 tab_comprar, tab_estado, tab_admin = st.tabs([
     "🎟️ Comprar Números", 
     "📊 Estado de Números", 
     "🔐 Administración"
 ])
 
-# =============================================================
-# 🎟️ PESTAÑA 1: COMPRAR NÚMEROS
-# =============================================================
+# -------------------------------------------------------------
+# PESTAÑA 1: COMPRAR NÚMEROS
+# -------------------------------------------------------------
 with tab_comprar:
-    # Premio Único
+    # Mostrar tarjeta del Premio Único
     premios = obtener_premios()
     if premios:
         _, _, p_nombre, p_desc, p_img = premios[0]
         st.markdown('<div class="premio-card">', unsafe_allow_html=True)
-        col_p1, col_p2 = st.columns([1, 2]) if p_img else (None, st)
         
-        if p_img and col_p1:
-            with col_p1:
+        if p_img:
+            col_img, col_txt = st.columns([1, 2])
+            with col_img:
                 try:
                     st.image(base64.b64decode(p_img), use_container_width=True)
                 except Exception:
-                    pass
-            with col_p2:
+                    st.write("🖼️ [Imagen del Premio]")
+            with col_txt:
                 st.subheader("🏆 Premio Único")
                 st.markdown(f"## {p_nombre}")
-                if p_desc: st.write(p_desc)
+                if p_desc:
+                    st.write(p_desc)
         else:
             st.subheader("🏆 Premio Único")
             st.markdown(f"## {p_nombre}")
-            if p_desc: st.write(p_desc)
-            
+            if p_desc:
+                st.write(p_desc)
+                
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # Proceso de reserva
+    # Evaluación si la reserva acaba de realizarse
     if st.session_state.reserva_confirmada:
         st.balloons()
-        st.success("🎉 ¡Reserva realizada con éxito!")
+        st.success("🎉 ¡Tu reserva se ha registrado exitosamente!")
+        
         st.markdown(
             f"""
             <div class="ticket-box">
                 <h3>🎟️ COMPROBANTE DE RESERVA</h3>
-                <p><b>Comprador:</b> {st.session_state.nombre_reserva}</p>
-                <p><b>Número(s):</b> {', '.join(st.session_state.numeros_reserva)}</p>
-                <p><b>Total a Pagar:</b> ₡{st.session_state.total_reserva:,.0f} CRC</p>
+                <p style="font-size: 1.1em;"><b>Comprador:</b> {st.session_state.nombre_reserva}</p>
+                <p style="font-size: 1.2em; color: #0056b3;"><b>Número(s) Seleccionado(s):</b> {', '.join(st.session_state.numeros_reserva)}</p>
+                <p style="font-size: 1.3em; font-weight: bold;"><b>Total a Pagar:</b> ₡{st.session_state.total_reserva:,.0f} CRC</p>
             </div>
             """,
             unsafe_allow_html=True,
         )
 
-        st.subheader("📲 Paso Final: Realiza el Pago y Envía el Comprobante")
+        st.subheader("📲 Paso Final: Realiza el Pago por SINPE Móvil")
+        st.write(f"1. Transfiere **₡{st.session_state.total_reserva:,.0f} CRC** al teléfono: **{num_limpio}** ({nombre_sinpe}).")
+        st.write("2. Presiona el botón verde de abajo para enviar la confirmación por WhatsApp:")
         
-        mensaje_wa = f"Hola! Reservé en la *{titulo_rifa}*:\n👤 Nombre: {st.session_state.nombre_reserva}\n🎟️ Números: {', '.join(st.session_state.numeros_reserva)}\n💰 Monto: ₡{st.session_state.total_reserva:,.0f} CRC\n\nAdjunto el comprobante del SINPE enviando al {num_limpio}."
+        mensaje_wa = f"Hola! Acabo de hacer una reserva en la *{titulo_rifa}*:\n\n👤 *Nombre:* {st.session_state.nombre_reserva}\n🎟️ *Número(s):* {', '.join(st.session_state.numeros_reserva)}\n💰 *Monto a pagar:* ₡{st.session_state.total_reserva:,.0f} CRC\n\nAdjunto la foto/comprobante del SINPE."
         url_wa = f"https://wa.me/506{num_limpio}?text={urllib.parse.quote(mensaje_wa)}"
         
-        col_w1, col_w2 = st.columns(2)
-        with col_w1:
-            st.markdown(f'<a href="{url_wa}" target="_blank"><button style="background-color:#25D366; color:white;">🟢 Confirmar por WhatsApp</button></a>', unsafe_allow_html=True)
-        with col_w2:
-            if st.button("🔄 Comprar más números"):
-                st.session_state.reserva_confirmada = False
-                st.session_state.seleccionados_global = []
-                st.rerun()
+        st.markdown(f'<a href="{url_wa}" target="_blank" style="text-decoration:none;"><div class="btn-whatsapp">🟢 Enviar Comprobante por WhatsApp</div></a>', unsafe_allow_html=True)
+        st.write("")
+        
+        if st.button("🔄 Elegir más números"):
+            st.session_state.reserva_confirmada = False
+            st.session_state.seleccionados_global = []
+            st.rerun()
 
     else:
-        st.subheader("Selecciona tus números:")
+        st.write("### 📌 Selecciona tus números")
         mapa_ocupados = obtener_mapa_numeros_ocupados()
         disponibles = total_numeros_config - len(mapa_ocupados)
-        st.caption(f"⚪ Disponibles: **{disponibles}** | ❌ Reservados / Pagados: **{len(mapa_ocupados)}**")
+        
+        # Panel informativo
+        col_m1, col_m2, col_m3 = st.columns(3)
+        col_m1.metric("Total Números", total_numeros_config)
+        col_m2.metric("⚪ Disponibles", disponibles)
+        col_m3.metric("❌ Reservados/Pagados", len(mapa_ocupados))
 
-        # Pestañas por decenas organizadas
+        st.write("---")
+        st.write("Utiliza las pestañas de abajo para explorar cada decena de números:")
+
+        # Pestañas por decenas (00-09, 10-19, ..., 90-99)
         rangos = []
         bloques = []
         for i in range(0, total_numeros_config, 10):
@@ -356,7 +410,7 @@ with tab_comprar:
                 inicio, fin = bloques[idx]
                 nums_bloque = list(range(inicio, fin + 1))
                 
-                # Fila 1 (primeros 5 números de la decena)
+                # Fila 1: Primeros 5 números
                 fila1 = nums_bloque[:5]
                 cols1 = st.columns(len(fila1))
                 for c_idx, num_val in enumerate(fila1):
@@ -375,7 +429,7 @@ with tab_comprar:
                                     st.session_state.seleccionados_global.remove(num_str)
                                     st.rerun()
 
-                # Fila 2 (siguientes 5 números de la decena)
+                # Fila 2: Siguientes 5 números
                 fila2 = nums_bloque[5:]
                 if fila2:
                     cols2 = st.columns(len(fila2))
@@ -395,20 +449,24 @@ with tab_comprar:
                                         st.session_state.seleccionados_global.remove(num_str)
                                         st.rerun()
 
+        # Resumen de lo seleccionado
         seleccionados = sorted(st.session_state.seleccionados_global, key=lambda x: int(x))
+        st.write("---")
+        
         if seleccionados:
             total_pagar = len(seleccionados) * precio_numero
-            st.info(f"🎟️ **Números seleccionados:** {', '.join(seleccionados)} | 💰 **Total:** ₡{total_pagar:,.0f} CRC")
+            st.info(f"🎟️ **Números seleccionados:** {', '.join(seleccionados)}  \n💰 **Monto Total:** ₡{total_pagar:,.0f} CRC")
             
-            st.write("---")
-            st.write("### 📋 Completa tu Reserva")
+            st.write("### 📋 Formulario de Reserva")
+            st.write("Por favor ingresa tus datos para apartar tus números:")
+            
             col_in1, col_in2 = st.columns(2)
             with col_in1:
-                nom_cli = st.text_input("Nombre Completo:")
+                nom_cli = st.text_input("Nombre Completo:", placeholder="Ej: Maria Rodríguez")
             with col_in2:
-                tel_cli = st.text_input("Teléfono (8 dígitos):", max_chars=8)
+                tel_cli = st.text_input("Número de Teléfono (8 dígitos):", placeholder="Ej: 88888888", max_chars=8)
 
-            if st.button("🔒 Reservar Números"):
+            if st.button("🔒 Reservar Mis Números Ahora"):
                 nom_l = nom_cli.strip()
                 tel_l = tel_cli.strip().replace(" ", "").replace("-", "")
                 
@@ -421,22 +479,24 @@ with tab_comprar:
                         st.session_state.nombre_reserva = nom_l
                         st.rerun()
                     else:
-                        st.error("Esos números ya fueron reservados.")
+                        st.error("⚠️ Uno o más de los números seleccionados ya fueron apartados por otra persona. Revisa la lista.")
                 else:
-                    st.error("Verifica que el nombre y el número de teléfono sean válidos.")
+                    st.error("⚠️ Revisa los datos: Ingresa un nombre válido y un número de teléfono de 8 dígitos sin espacios ni guiones.")
 
-# =============================================================
-# 📊 PESTAÑA 2: ESTADO DE NÚMEROS (PÚBLICA)
-# =============================================================
+# -------------------------------------------------------------
+# PESTAÑA 2: ESTADO DE NÚMEROS (PÚBLICO)
+# -------------------------------------------------------------
 with tab_estado:
     st.subheader("📊 Estado Transparente de la Rifa")
+    st.write("Aquí puedes verificar de forma transparente la lista pública de los números reservados y sus estados.")
+    
     df_publico = obtener_todas_las_reservas()
     
     if not df_publico.empty:
-        # Ocultar teléfono por privacidad
+        # Copia sin teléfono por motivos de privacidad
         df_ver = df_publico[["Número", "Comprador", "Estatus Pago"]].copy()
         
-        busqueda = st.text_input("🔍 Buscar por número o nombre:", placeholder="Ej: 05 o Juan")
+        busqueda = st.text_input("🔍 Buscar por número o nombre del comprador:", placeholder="Ej: 07 o Carlos")
         if busqueda:
             df_ver = df_ver[
                 df_ver["Número"].str.contains(busqueda) | 
@@ -445,34 +505,39 @@ with tab_estado:
             
         st.dataframe(df_ver, use_container_width=True)
     else:
-        st.info("Aún no hay números reservados. ¡Sé el primero en seleccionar uno!")
+        st.info("Aún no hay números reservados. ¡Sé el primero en seleccionar uno en la pestaña de compra!")
 
-# =============================================================
-# 🔐 PESTAÑA 3: ADMINISTRACIÓN (PRIVADA)
-# =============================================================
+# -------------------------------------------------------------
+# PESTAÑA 3: ADMINISTRACIÓN (PRIVADA)
+# -------------------------------------------------------------
 with tab_admin:
-    clave_admin = st.text_input("🔑 Contraseña de Administrador:", type="password")
+    st.subheader("🔐 Panel de Control de Administración")
+    clave_admin = st.text_input("Ingresa la Contraseña de Administrador:", type="password")
     
     if clave_admin == "1234":
-        st.success("Acceso Administrador Autorizado")
+        st.success("Acceso concedido al Administrador.")
         
-        # --- RESUMEN DE METRICAS ---
+        # Dashboard de métricas
+        st.write("---")
+        st.markdown("### 📈 Métricas de la Rifa")
         mapa = obtener_mapa_numeros_ocupados()
         tot_res = len(mapa)
         tot_pag = sum(1 for e in mapa.values() if "Pagado" in str(e))
         tot_pen = tot_res - tot_pag
         recaudado = tot_pag * precio_numero
 
-        c_m1, c_m2, c_m3 = st.columns(3)
-        c_m1.metric("Total Reservados", f"{tot_res}/{total_numeros_config}")
-        c_m2.metric("✅ Pagados", f"{tot_pag}")
-        c_m3.metric("💰 Recaudado", f"₡{recaudado:,.0f}")
+        col_adm_m1, col_adm_m2, col_adm_m3, col_adm_m4 = st.columns(4)
+        col_adm_m1.metric("Reservados", f"{tot_res}/{total_numeros_config}")
+        col_adm_m2.metric("✅ Pagados", f"{tot_pag}")
+        col_adm_m3.metric("⏳ Pendientes", f"{tot_pen}")
+        col_adm_m4.metric("💰 Recaudado", f"₡{recaudado:,.0f}")
         
-        st.progress(min(tot_res / total_numeros_config, 1.0))
+        progreso = min(tot_res / total_numeros_config, 1.0)
+        st.progress(progreso)
 
         st.write("---")
-        # --- GESTIÓN DE RESERVAS ---
-        st.subheader("📋 Administración de Ventas")
+        # Gestión detallada de reservas
+        st.markdown("### 📋 Registro General de Ventas")
         df_admin = obtener_todas_las_reservas()
         
         if not df_admin.empty:
@@ -480,59 +545,65 @@ with tab_admin:
             
             c_adm1, c_adm2 = st.columns(2)
             with c_adm1:
-                st.markdown("#### ✏️ Cambiar Estado")
-                num_est = st.selectbox("Número:", df_admin["Número"].tolist(), key="sel_a1")
-                nuevo_e = st.selectbox("Estado:", ["✅ Pagado", "⏳ Pendiente"], key="sel_a2")
-                if st.button("💾 Actualizar Estado"):
+                st.markdown("#### ✏️ Actualizar Estado de Pago")
+                num_est = st.selectbox("Seleccionar Número:", df_admin["Número"].tolist(), key="sel_a1")
+                nuevo_e = st.selectbox("Nuevo Estado:", ["✅ Pagado", "⏳ Pendiente"], key="sel_a2")
+                if st.button("💾 Guardar Nuevo Estado"):
                     cambiar_estado_pago(num_est, nuevo_e)
-                    st.success("Estado actualizado")
+                    st.success(f"Estado del número {num_est} actualizado a {nuevo_e}")
                     st.rerun()
 
             with c_adm2:
-                st.markdown("#### 🔓 Liberar Número")
-                num_lib = st.selectbox("Número:", df_admin["Número"].tolist(), key="sel_a3")
-                if st.button("🔓 Liberar y Borrar Reserva"):
+                st.markdown("#### 🔓 Liberar un Número")
+                num_lib = st.selectbox("Seleccionar Número a Liberar:", df_admin["Número"].tolist(), key="sel_a3")
+                if st.button("🔓 Cancelar Reserva y Liberar"):
                     liberar_numero(num_lib)
-                    st.success("Número liberado")
+                    st.success(f"El número {num_lib} ha sido liberado nuevamente.")
                     st.rerun()
+        else:
+            st.info("Aún no hay compras o reservas en el sistema.")
 
         st.write("---")
-        # --- CONFIGURAR PREMIO ÚNICO ---
-        st.subheader("🎁 Configurar Premio Único")
-        with st.form("form_p"):
-            p_nom = st.text_input("Nombre del Premio:")
-            p_desc = st.text_area("Descripción:")
-            p_file = st.file_uploader("Foto del premio:", type=["png", "jpg", "jpeg", "webp"])
-            if st.form_submit_button("💾 Guardar Premio Único"):
+        # Gestión de Premio Único
+        st.markdown("### 🎁 Configurar el Premio Único")
+        with st.form("form_premio_admin"):
+            p_nom = st.text_input("Nombre del Premio:", placeholder="Ej: Motocicleta Formula 150cc")
+            p_desc = st.text_area("Descripción detallada:", placeholder="Modelo 2024, cero kilómetros, incluye casco.")
+            p_file = st.file_uploader("Fotografía del premio:", type=["png", "jpg", "jpeg", "webp"])
+            
+            if st.form_submit_button("💾 Guardar / Actualizar Premio Único"):
                 if p_nom:
                     img_b64 = procesar_imagen_a_base64(p_file)
                     agregar_premio("Premio Único", p_nom, p_desc, img_b64)
-                    st.success("Premio actualizado")
+                    st.success("Premio Único actualizado exitosamente.")
                     st.rerun()
+                else:
+                    st.error("Ingresa al menos el nombre del premio.")
 
         st.write("---")
-        # --- CONFIGURACIÓN GENERAL ---
-        st.subheader("⚙️ Configuración General de la Rifa")
-        with st.form("form_cfg"):
+        # Ajustes de configuración
+        st.markdown("### ⚙️ Configuración de la Rifa y Cuenta SINPE")
+        with st.form("form_config_admin"):
             cfg_tit = st.text_input("Título de la Rifa:", value=titulo_rifa)
-            cfg_pre = st.number_input("Precio por número:", value=precio_numero, step=500)
-            cfg_tot = st.number_input("Total de números:", value=total_numeros_config, step=10)
-            cfg_fec = st.date_input("Fecha Sorteo:", value=fecha_sorteo_db)
-            cfg_sin = st.text_input("Número SINPE:", value=num_limpio)
-            cfg_nom = st.text_input("Nombre SINPE:", value=nombre_sinpe)
+            cfg_pre = st.number_input("Precio de cada número (₡):", value=precio_numero, step=500)
+            cfg_tot = st.number_input("Total de números habilitados:", value=total_numeros_config, step=10)
+            cfg_fec = st.date_input("Fecha del Sorteo:", value=fecha_sorteo_db)
+            cfg_sin = st.text_input("Número SINPE Móvil:", value=num_limpio)
+            cfg_nom = st.text_input("Nombre del Titular del SINPE:", value=nombre_sinpe)
             
-            if st.form_submit_button("💾 Guardar Configuración"):
+            if st.form_submit_button("💾 Guardar Configuración General"):
                 guardar_configuracion(cfg_tit, cfg_pre, cfg_sin, cfg_nom, cfg_fec.strftime("%Y-%m-%d"), cfg_tot)
-                st.success("Configuración guardada")
+                st.success("Configuración del sistema actualizada correctamente.")
                 st.rerun()
 
-        # --- ZONA DE BORRADO ---
+        # Zona de reinicio completo
         st.write("---")
-        if st.checkbox("⚠️ Confirmar borrado completo de la rifa"):
-            if st.button("🗑️ Borrar Todas las Reservas"):
+        st.markdown("### ⚠️ Zona Peligrosa")
+        if st.checkbox("Confirmo que deseo borrar de forma permanente todas las reservas actuales"):
+            if st.button("🗑️ Reiniciar Rifa Completa (Borrar Todas las Reservas)"):
                 reiniciar_rifa()
-                st.success("Rifa reiniciada")
+                st.success("Se han eliminado todas las reservas. La rifa está lista desde cero.")
                 st.rerun()
 
     elif clave_admin != "":
-        st.error("Contraseña incorrecta")
+        st.error("❌ Contraseña incorrecta. Inténtalo de nuevo.")
