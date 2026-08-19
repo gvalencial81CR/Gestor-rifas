@@ -77,11 +77,11 @@ with st.sidebar:
     st.metric("Números Vendidos / Reservados", f"{len(ocupados)} / 100")
 
     st.write("---")
-    # --- PESTAÑA DE ADMINISTRACIÓN EN LA BARRA LATERAL ---
+    # --- PESTAÑA DE ADMINISTRACIÓN ---
     with st.expander("🔑 Admin: Gestionar y Liberar Números"):
         clave_admin = st.text_input("Contraseña Admin:", type="password")
         
-        if clave_admin == "1234":  # Cambia esta clave si lo deseas
+        if clave_admin == "1234":
             st.success("Acceso concedido")
             
             df_reservas = obtener_todas_las_reservas()
@@ -130,7 +130,10 @@ for i in range(100):
 
 st.write("---")
 
-# --- RESUMEN DE PAGO Y RESERVA ---
+# --- LÓGICA DE RESERVA Y ESTADO DE SESIÓN ---
+if "reserva_confirmada" not in st.session_state:
+    st.session_state.reserva_confirmada = False
+
 if numeros_seleccionados:
     total = len(numeros_seleccionados) * precio_numero
     num_limpio = num_sinpe.replace("-", "").replace(" ", "")
@@ -151,8 +154,8 @@ if numeros_seleccionados:
 
     st.write("---")
     st.write("### 📋 Datos para la Reserva")
-    nombre_cliente = st.text_input("Tu Nombre Completo:")
-    telefono_cliente = st.text_input("Tu Número de Teléfono:")
+    nombre_cliente = st.text_input("Tu Nombre Completo:", key="input_nombre")
+    telefono_cliente = st.text_input("Tu Número de Teléfono:", key="input_telefono")
     
     if st.button("🔒 Confirmar Reserva"):
         if nombre_cliente.strip() != "" and telefono_cliente.strip() != "":
@@ -162,60 +165,64 @@ if numeros_seleccionados:
                 st.error(f"Los siguientes números ya habían sido tomados: {', '.join(fallidos)}")
             
             if exitosos:
+                st.session_state.reserva_confirmada = True
+                st.session_state.numeros_reserva = exitosos
+                st.session_state.total_reserva = total
+                st.session_state.nombre_reserva = nombre_cliente
                 st.balloons()
-                st.success(f"🎉 ¡Números {', '.join(exitosos)} reservados exitosamente!")
-                
-                st.write("---")
-                st.subheader("📲 Elige cómo pagar / enviar comprobante:")
-
-                # Lista de bancos de Costa Rica para SMS
-                bancos_sms = {
-                    "Banco Nacional (BNCR)": "2627",
-                    "Banco de Costa Rica (BCR)": "4066",
-                    "BAC Credomatic": "70701222",
-                    "Banco Promerica": "62232450"
-                }
-
-                banco_seleccionado = st.selectbox("Si pagas por SMS (mensajería de texto), selecciona tu banco:", list(bancos_sms.keys()))
-                numero_banco = bancos_sms[banco_seleccionado]
-                
-                # Texto para SMS
-                texto_sms = f"PASE {int(total)} {num_limpio} Rifa"
-                texto_sms_codificado = urllib.parse.quote(texto_sms)
-                url_sms = f"sms:{numero_banco}?body={texto_sms_codificado}"
-
-                # Texto para WhatsApp
-                nums_texto = ", ".join(exitosos)
-                mensaje_wa = (
-                    f"Hola! Acabo de reservar en la *{titulo_rifa}*:\n\n"
-                    f"👤 *Nombre:* {nombre_cliente}\n"
-                    f"🎟️ *Números:* {nums_texto}\n"
-                    f"💰 *Monto transferido:* ₡{total:,.0f} CRC\n\n"
-                    f"Adjunto el comprobante del SINPE Móvil enviado al {num_sinpe}."
-                )
-                mensaje_wa_codificado = urllib.parse.quote(mensaje_wa)
-                url_whatsapp = f"https://wa.me/506{num_limpio}?text={mensaje_wa_codificado}"
-                
-                col_btn1, col_btn2 = st.columns(2)
-                
-                with col_btn1:
-                    st.markdown(f"""
-                        <a href="{url_sms}">
-                            <button style="background-color: #0056b3; color: white; border: none; padding: 14px 15px; font-size: 15px; font-weight: bold; border-radius: 8px; cursor: pointer; width: 100%; margin-bottom: 10px;">
-                                💬 Pagar vía SMS ({numero_banco})
-                            </button>
-                        </a>
-                    """, unsafe_allow_html=True)
-
-                with col_btn2:
-                    st.markdown(f"""
-                        <a href="{url_whatsapp}" target="_blank">
-                            <button style="background-color: #25D366; color: white; border: none; padding: 14px 15px; font-size: 15px; font-weight: bold; border-radius: 8px; cursor: pointer; width: 100%;">
-                                🟢 Confirmar por WhatsApp
-                            </button>
-                        </a>
-                    """, unsafe_allow_html=True)
         else:
             st.error("Por favor completa tu nombre y número de teléfono antes de reservar.")
+
+    # --- BLOQUE DE PAGO SI YA SE CONFIRMÓ LA RESERVA ---
+    if st.session_state.reserva_confirmada:
+        st.write("---")
+        st.success(f"🎉 ¡Números {', '.join(st.session_state.numeros_reserva)} reservados exitosamente!")
+        st.subheader("📲 Elige cómo pagar / enviar comprobante:")
+
+        bancos_sms = {
+            "Banco Nacional (BNCR)": "2627",
+            "Banco de Costa Rica (BCR)": "4066",
+            "BAC Credomatic": "70701222",
+            "Banco Promerica": "62232450"
+        }
+
+        banco_seleccionado = st.selectbox("Si pagas por SMS, selecciona tu banco:", list(bancos_sms.keys()))
+        numero_banco = bancos_sms[banco_seleccionado]
+        
+        texto_sms = f"PASE {int(st.session_state.total_reserva)} {num_limpio} Rifa"
+        texto_sms_codificado = urllib.parse.quote(texto_sms)
+        url_sms = f"sms:{numero_banco}?body={texto_sms_codificado}"
+
+        nums_texto = ", ".join(st.session_state.numeros_reserva)
+        mensaje_wa = (
+            f"Hola! Acabo de reservar en la *{titulo_rifa}*:\n\n"
+            f"👤 *Nombre:* {st.session_state.nombre_reserva}\n"
+            f"🎟️ *Números:* {nums_texto}\n"
+            f"💰 *Monto transferido:* ₡{st.session_state.total_reserva:,.0f} CRC\n\n"
+            f"Adjunto el comprobante del SINPE Móvil enviado al {num_sinpe}."
+        )
+        mensaje_wa_codificado = urllib.parse.quote(mensaje_wa)
+        url_whatsapp = f"https://wa.me/506{num_limpio}?text={mensaje_wa_codificado}"
+        
+        col_btn1, col_btn2 = st.columns(2)
+        
+        with col_btn1:
+            st.markdown(f"""
+                <a href="{url_sms}">
+                    <button style="background-color: #0056b3; color: white; border: none; padding: 14px 15px; font-size: 15px; font-weight: bold; border-radius: 8px; cursor: pointer; width: 100%; margin-bottom: 10px;">
+                        💬 Pagar vía SMS ({numero_banco})
+                    </button>
+                </a>
+            """, unsafe_allow_html=True)
+
+        with col_btn2:
+            st.markdown(f"""
+                <a href="{url_whatsapp}" target="_blank">
+                    <button style="background-color: #25D366; color: white; border: none; padding: 14px 15px; font-size: 15px; font-weight: bold; border-radius: 8px; cursor: pointer; width: 100%;">
+                        🟢 Confirmar por WhatsApp
+                    </button>
+                </a>
+            """, unsafe_allow_html=True)
 else:
+    st.session_state.reserva_confirmada = False
     st.warning("Selecciona al menos un número disponible para continuar.")
