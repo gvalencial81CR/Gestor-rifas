@@ -54,12 +54,12 @@ st.markdown(
 )
 
 
-# --- CONEXIÓN Y FUNCIONES DE BASE DE DATOS ---
+# --- CONEXIÓN Y FUNCIONES DE BASE DE DATOS (NUEVA BASE REINICIADA: rifa_v3.db) ---
 def conectar_db():
-    conn = sqlite3.connect("rifa.db")
+    conn = sqlite3.connect("rifa_v3.db")
     c = conn.cursor()
 
-    # Tabla de reservas (con estado_pago)
+    # Tabla de reservas
     c.execute("""
         CREATE TABLE IF NOT EXISTS numeros_comprados (
             numero TEXT PRIMARY KEY,
@@ -70,14 +70,6 @@ def conectar_db():
         )
     """)
 
-    try:
-        c.execute(
-            "ALTER TABLE numeros_comprados ADD COLUMN estado_pago TEXT DEFAULT"
-            " 'Pendiente'"
-        )
-    except sqlite3.OperationalError:
-        pass
-
     # Tabla de configuración permanente
     c.execute("""
         CREATE TABLE IF NOT EXISTS configuracion (
@@ -86,7 +78,7 @@ def conectar_db():
         )
     """)
 
-    # Tabla de Premios
+    # Tabla de Premios (con soporte directo para guardar la foto cargada desde el dispositivo)
     c.execute("""
         CREATE TABLE IF NOT EXISTS premios (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -141,7 +133,7 @@ def guardar_configuracion(titulo, precio, num_sinpe, nombre_sinpe, fecha_str, to
     conn.close()
 
 
-# --- FUNCIONES PARA GESTIÓN DE PREMIOS CON SUBIDA DE IMAGEN ---
+# --- FUNCIONES PARA CONVERTIR FOTO SUBIDA DESDE CELULAR/COMPU ---
 def procesar_imagen_a_base64(uploaded_file):
     if uploaded_file is not None:
         bytes_data = uploaded_file.getvalue()
@@ -398,7 +390,7 @@ with st.sidebar:
         else:
             st.info("No hay reservas registradas por el momento.")
 
-        # --- GESTIÓN DE PREMIOS (SUBIDA DIRECTA DE ARCHIVO DESDE CELULAR/COMPU) ---
+        # --- GESTIÓN DE PREMIOS (ELEGIR FOTO DESDE EL DISPOSITIVO) ---
         st.write("---")
         st.write("### 🎁 Administración de Premios")
         with st.form("form_nuevo_premio", clear_on_submit=True):
@@ -406,9 +398,9 @@ with st.sidebar:
             premio_nombre = st.text_input("Nombre del Premio:", placeholder="Ej: Pantalla Smart TV 55''")
             premio_desc = st.text_area("Descripción:", placeholder="Marca LG 4K Ultra HD...")
             
-            # Campo para subir la foto directamente desde el dispositivo
+            # Selector de archivo desde Celular / Computadora
             archivo_imagen = st.file_uploader(
-                "📷 Selecciona la imagen desde tu dispositivo:", 
+                "📷 Seleccionar imagen desde este dispositivo:", 
                 type=["png", "jpg", "jpeg", "webp"]
             )
 
