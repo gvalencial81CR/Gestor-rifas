@@ -3,8 +3,21 @@ import sqlite3
 import urllib.parse
 import pandas as pd
 
-# Configuración de la página
+# Configuración de la página (layout centrado ideal para teléfonos)
 st.set_page_config(page_title="Gestor de Rifas CR 🇨🇷", layout="centered", page_icon="🎟️")
+
+# Estilos CSS personalizados para mejorar el tamaño de los botones en celular
+st.markdown("""
+    <style>
+    /* Estilo para hacer botones táctiles más grandes en celular */
+    .stButton>button {
+        width: 100%;
+        height: 3em;
+        font-weight: bold;
+        border-radius: 8px;
+    }
+    </style>
+""", unsafe_allow_html=True)
 
 # --- CONEXIÓN Y FUNCIONES DE BASE DE DATOS ---
 def conectar_db():
@@ -104,29 +117,54 @@ with st.sidebar:
 
 # --- VISTA PRINCIPAL ---
 st.title(titulo_rifa)
-st.subheader("Selecciona tus números del 00 al 99")
+st.subheader("Elige tus números del 00 al 99")
 
 st.write("---")
 
 numeros_bloqueados = obtener_numeros_ocupados()
 
-st.write("### Tablero de Números:")
-st.caption("🔴 Rojo = Reservado/Ocupado | ⚪ Blanco = Disponible")
+st.write("### 🔢 Selecciona un rango de números:")
+st.caption("🔴 Indican números Ocupados | Selecciona casillas organizadas por decenas")
 
-# Matriz del 00 al 99 en 10 columnas
-cols = st.columns(10)
+# Lista de rangos de decenas para el teléfono
+rangos = [
+    "00 - 09", "10 - 19", "20 - 29", "30 - 39", "40 - 49",
+    "50 - 59", "60 - 69", "70 - 79", "80 - 89", "90 - 99"
+]
+
+# Pestañas horizontales para navegar cómodamente por decenas
+tabs = st.tabs(rangos)
+
 numeros_seleccionados = []
 
-for i in range(100):
-    num_str = f"{i:02d}"
-    col_idx = i % 10
-    
-    with cols[col_idx]:
-        if num_str in numeros_bloqueados:
-            st.button(f"❌ {num_str}", key=f"btn_{num_str}", disabled=True)
-        else:
-            if st.checkbox(num_str, key=f"num_{num_str}"):
-                numeros_seleccionados.append(num_str)
+# Mantener la lista de elegidos entre navegación de pestañas
+if "seleccionados_global" not in st.session_state:
+    st.session_state.seleccionados_global = []
+
+for idx, tab in enumerate(tabs):
+    with tab:
+        inicio = idx * 10
+        fin = inicio + 10
+        
+        # Usamos 5 columnas en lugar de 10 para que los números se vean grandes en celular
+        cols = st.columns(5)
+        
+        for i in range(inicio, fin):
+            num_str = f"{i:02d}"
+            col_idx = (i - inicio) % 5
+            
+            with cols[col_idx]:
+                if num_str in numeros_bloqueados:
+                    st.button(f"❌ {num_str}", key=f"btn_{num_str}", disabled=True)
+                else:
+                    if st.checkbox(num_str, key=f"num_{num_str}"):
+                        if num_str not in st.session_state.seleccionados_global:
+                            st.session_state.seleccionados_global.append(num_str)
+                    else:
+                        if num_str in st.session_state.seleccionados_global:
+                            st.session_state.seleccionados_global.remove(num_str)
+
+numeros_seleccionados = sorted(st.session_state.seleccionados_global)
 
 st.write("---")
 
@@ -138,7 +176,7 @@ if numeros_seleccionados:
     total = len(numeros_seleccionados) * precio_numero
     num_limpio = num_sinpe.replace("-", "").replace(" ", "")
     
-    st.success(f"**Números elegidos:** {', '.join(numeros_seleccionados)}")
+    st.success(f"**Números elegidos ({len(numeros_seleccionados)}):** {', '.join(numeros_seleccionados)}")
     st.info(f"**Total a pagar:** ₡{total:,.0f} CRC")
     
     st.write("### 💳 Datos para pagar por SINPE Móvil")
@@ -147,10 +185,10 @@ if numeros_seleccionados:
     col_a, col_b = st.columns(2)
     with col_a:
         st.code(num_limpio, language="text")
-        st.caption("👆 Copiar número SINPE")
+        st.caption("Copiar número SINPE")
     with col_b:
         st.code(f"{int(total)}", language="text")
-        st.caption("👆 Copiar monto exacto")
+        st.caption("Copiar monto exacto")
 
     st.write("---")
     st.write("### 📋 Datos para la Reserva")
@@ -169,6 +207,7 @@ if numeros_seleccionados:
                 st.session_state.numeros_reserva = exitosos
                 st.session_state.total_reserva = total
                 st.session_state.nombre_reserva = nombre_cliente
+                st.session_state.seleccionados_global = [] # Limpiar casillas tras reservar
                 st.balloons()
         else:
             st.error("Por favor completa tu nombre y número de teléfono antes de reservar.")
