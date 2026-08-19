@@ -28,6 +28,14 @@ st.markdown(
         text-align: center;
         margin-bottom: 10px;
     }
+    .ticket-box {
+        border: 2px dashed #0056b3;
+        background-color: #eef6ff;
+        padding: 15px;
+        border-radius: 10px;
+        text-align: center;
+        margin-bottom: 15px;
+    }
     </style>
 """,
     unsafe_allow_html=True,
@@ -245,8 +253,42 @@ with st.sidebar:
     st.write("### 📋 Tabla General de Reservas")
 
     if not df_reservas.empty:
-      st.dataframe(df_reservas, use_container_width=True)
+      # 🔍 FILTROS Y BÚSQUEDA EN TABLA DE ADMIN
+      col_f1, col_f2 = st.columns([1, 1])
+      with col_f1:
+        filtro_estado = st.selectbox(
+            "Filtrar Estado:",
+            ["Todos", "✅ Pagado", "⏳ Pendiente"],
+            key="filtro_est",
+        )
+      with col_f2:
+        busqueda_txt = st.text_input(
+            "Buscar (Nombre/Tel):", key="search_admin", placeholder="Ej: Juan"
+        )
 
+      df_filtrado = df_reservas.copy()
+      if filtro_estado != "Todos":
+        df_filtrado = df_filtrado[df_filtrado["Estatus Pago"] == filtro_estado]
+
+      if busqueda_txt.strip():
+        txt_b = busqueda_txt.strip().lower()
+        df_filtrado = df_filtrado[
+            df_filtrado["Comprador"].str.lower().str.contains(txt_b)
+            | df_filtrado["Teléfono"].str.contains(txt_b)
+        ]
+
+      st.dataframe(df_filtrado, use_container_width=True)
+
+      # 📥 EXPORTAR A EXCEL / CSV
+      csv_data = df_reservas.to_csv(index=False).encode("utf-8")
+      st.download_button(
+          label="📥 Descargar Lista Completa (CSV)",
+          data=csv_data,
+          file_name=f"Reservas_{datetime.now().strftime('%Y%m%d')}.csv",
+          mime="text/csv",
+      )
+
+      st.write("---")
       st.write("#### ✏️ Cambiar Estatus de Pago")
       lista_numeros = df_reservas["Número"].tolist()
 
@@ -339,6 +381,24 @@ nombre_sinpe = config_actual["sinpe_nombre"]
 st.title(titulo_rifa)
 st.caption(f"📅 **Fecha del Sorteo:** {fecha_formateada}")
 
+# ⚡ INDICADOR DE DISPONIBILIDAD Y URGENCIA
+mapa_numeros_actual = obtener_mapa_numeros_ocupados()
+disponibles_count = 100 - len(mapa_numeros_actual)
+
+if disponibles_count <= 20 and disponibles_count > 0:
+  st.warning(f"🔥 **¡Atención! Solo quedan {disponibles_count} números disponibles.**")
+else:
+  st.info(f"🎟️ **Números disponibles:** {disponibles_count} de 100")
+
+# 📜 REGLAMENTO / TÉRMINOS Y CONDICIONES
+with st.expander("📜 Reglamento y Términos de la Rifa"):
+  st.markdown(f"""
+    * **Valor del boleto:** ₡{precio_numero:,.0f} CRC cada número.
+    * **Pago vía SINPE Móvil:** Al realizar la reserva, debes transferir el monto exacto al **{num_limpio}** a nombre de **{nombre_sinpe}**.
+    * **Confirmación:** Envía el comprobante de pago vía WhatsApp para confirmar tu número.
+    * **Plazo máximo:** Las reservas no pagadas en un plazo razonable podrán ser liberadas.
+    """)
+
 # --- VISTA 1: SI YA SE CONFIRMÓ LA RESERVA ---
 if st.session_state.reserva_confirmada:
   st.balloons()
@@ -356,10 +416,20 @@ if st.session_state.reserva_confirmada:
     txt_nums_wa = f"Números:* {nums_texto}"
 
   st.success(msg_exito)
-  st.info(
-      f"👤 **Comprador:** {st.session_state.nombre_reserva} | 📅 **Fecha:**"
-      f" {st.session_state.fecha_reserva} | 💰 **Total a pagar:**"
-      f" ₡{st.session_state.total_reserva:,.0f} CRC"
+
+  # 🎫 COMPROBANTE DIGITAL DE RESERVA
+  st.markdown(
+      f"""
+    <div class="ticket-box">
+        <h3>🎟️ BOLETO DIGITAL DE RESERVA</h3>
+        <p><b>Rifa:</b> {st.session_state.titulo_reserva}</p>
+        <p><b>Comprador:</b> {st.session_state.nombre_reserva}</p>
+        <p><b>Número(s):</b> {', '.join(st.session_state.numeros_reserva)}</p>
+        <p><b>Total a Pagar:</b> ₡{st.session_state.total_reserva:,.0f} CRC</p>
+        <p><b>Fecha de Sorteo:</b> {st.session_state.fecha_reserva}</p>
+    </div>
+    """,
+      unsafe_allow_html=True,
   )
 
   st.write("---")
