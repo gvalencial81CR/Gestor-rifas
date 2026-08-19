@@ -2,6 +2,7 @@ import streamlit as st
 import sqlite3
 import urllib.parse
 import pandas as pd
+from datetime import datetime
 
 # Configuración de la página
 st.set_page_config(page_title="Gestor de Rifas CR 🇨🇷", layout="centered", page_icon="🎟️")
@@ -82,6 +83,7 @@ if "seleccionados_global" not in st.session_state:
 with st.sidebar:
     st.header("⚙️ Configuración de la Rifa")
     titulo_rifa = st.text_input("Nombre de la Rifa:", "🎟️ Gran Rifa Especial 🇨🇷")
+    fecha_sorteo = st.date_input("Fecha del Sorteo:", value=datetime.today())
     precio_numero = st.number_input("Precio por número (₡ CRC):", min_value=100, value=1000, step=100)
     
     st.write("---")
@@ -120,8 +122,12 @@ with st.sidebar:
         elif clave_admin != "":
             st.error("Contraseña incorrecta")
 
+# Formatear la fecha para mostrarla limpia (ejemplo: 25/12/2026)
+fecha_formateada = fecha_sorteo.strftime("%d/%m/%Y")
+
 # --- VISTA PRINCIPAL ---
 st.title(titulo_rifa)
+st.caption(f"📅 **Fecha del Sorteo:** {fecha_formateada}")
 
 num_limpio = num_sinpe.replace("-", "").replace(" ", "")
 
@@ -139,7 +145,7 @@ if st.session_state.reserva_confirmada:
         txt_nums_wa = f"Números:* {nums_texto}"
         
     st.success(msg_exito)
-    st.info(f"👤 **Comprador:** {st.session_state.nombre_reserva} | 💰 **Total a pagar:** ₡{st.session_state.total_reserva:,.0f} CRC")
+    st.info(f"👤 **Comprador:** {st.session_state.nombre_reserva} | 📅 **Fecha:** {fecha_formateada} | 💰 **Total a pagar:** ₡{st.session_state.total_reserva:,.0f} CRC")
 
     st.write("---")
     st.subheader("📲 Elige tu método para pagar / enviar comprobante:")
@@ -161,6 +167,7 @@ if st.session_state.reserva_confirmada:
     mensaje_wa = (
         f"Hola! Acabo de reservar en la *{titulo_rifa}*:\n\n"
         f"👤 *Nombre:* {st.session_state.nombre_reserva}\n"
+        f"📅 *Fecha del sorteo:* {fecha_formateada}\n"
         f"🎟️ *{txt_nums_wa}\n"
         f"💰 *Monto transferido:* ₡{st.session_state.total_reserva:,.0f} CRC\n\n"
         f"Adjunto el comprobante del SINPE Móvil enviado al {num_sinpe}."
@@ -231,7 +238,7 @@ else:
                             if num_str in st.session_state.seleccionados_global:
                                 st.session_state.seleccionados_global.remove(num_str)
 
-            # Fila 2: siguientes 5 números (CORREGIDA LA SINTAXIS AQUÍ)
+            # Fila 2: siguientes 5 números
             cols_fila2 = st.columns(5)
             for offset in range(5, 10):
                 i = inicio + offset
