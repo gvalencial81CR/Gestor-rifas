@@ -98,19 +98,48 @@ if "reserva_confirmada" not in st.session_state:
 if "seleccionados_global" not in st.session_state:
   st.session_state.seleccionados_global = []
 
+# Guardar valores por defecto en sesión si no existen
+if "cfg_titulo" not in st.session_state:
+  st.session_state.cfg_titulo = "🎟️ Gran Rifa Especial 🇨🇷"
+if "cfg_num_sinpe" not in st.session_state:
+  st.session_state.cfg_num_sinpe = "88888888"
+if "cfg_nombre_sinpe" not in st.session_state:
+  st.session_state.cfg_nombre_sinpe = "Juan Pérez"
+if "cfg_precio" not in st.session_state:
+  st.session_state.cfg_precio = 1000
+
 # --- PANEL LATERAL ---
 with st.sidebar:
   st.header("⚙️ Configuración de la Rifa")
-  titulo_rifa = st.text_input("Nombre de la Rifa:", "🎟️ Gran Rifa Especial 🇨🇷")
+
+  input_titulo = st.text_input("Nombre de la Rifa:", st.session_state.cfg_titulo)
   fecha_sorteo = st.date_input("Fecha del Sorteo:", value=datetime.today())
-  precio_numero = st.number_input(
-      "Precio por número (₡ CRC):", min_value=100, value=1000, step=100
+  input_precio = st.number_input(
+      "Precio por número (₡ CRC):",
+      min_value=100,
+      value=int(st.session_state.cfg_precio),
+      step=100,
   )
 
   st.write("---")
   st.header("📱 Datos de SINPE Móvil")
-  num_sinpe = st.text_input("Tu Número de SINPE Móvil:", "88888888")
-  nombre_sinpe = st.text_input("Nombre Titular del SINPE:", "Juan Pérez")
+  input_num_sinpe = st.text_input(
+      "Tu Número de SINPE Móvil:", st.session_state.cfg_num_sinpe
+  )
+  input_nombre_sinpe = st.text_input(
+      "Nombre Titular del SINPE:", st.session_state.cfg_nombre_sinpe
+  )
+
+  # Botón para guardar configuración
+  if st.button("💾 Guardar Configuración"):
+    st.session_state.cfg_titulo = input_titulo
+    st.session_state.cfg_precio = input_precio
+    st.session_state.cfg_num_sinpe = (
+        input_num_sinpe.replace("-", "").replace(" ", "").strip()
+    )
+    st.session_state.cfg_nombre_sinpe = input_nombre_sinpe
+    st.success("¡Configuración guardada!")
+    st.rerun()
 
   st.write("---")
   st.write("### 📊 Estado de Ventas")
@@ -145,11 +174,18 @@ with st.sidebar:
     elif clave_admin != "":
       st.error("Contraseña incorrecta")
 
-# Formatear la fecha para mostrarla limpia
+# Formatear la fecha
 fecha_formateada = fecha_sorteo.strftime("%d/%m/%Y")
 
-# Limpieza estricta del número SINPE (remueve guiones y espacios)
-num_limpio = num_sinpe.replace("-", "").replace(" ", "").strip()
+# Usar los datos guardados en sesión
+titulo_rifa = st.session_state.cfg_titulo
+precio_numero = st.session_state.cfg_precio
+num_limpio = (
+    input_num_sinpe.replace("-", "").replace(" ", "").strip()
+    if input_num_sinpe
+    else st.session_state.cfg_num_sinpe
+)
+nombre_sinpe = st.session_state.cfg_nombre_sinpe
 
 # --- VISTA PRINCIPAL ---
 st.title(titulo_rifa)
@@ -193,14 +229,9 @@ if st.session_state.reserva_confirmada:
   )
   numero_banco = bancos_sms[banco_seleccionado]
 
-  # Utilizar num_limpio para asegurar que siempre toma el valor actual de la barra lateral
-  sinpe_para_envio = (
-      num_limpio if num_limpio else st.session_state.sinpe_reserva
-  )
+  sinpe_final = st.session_state.sinpe_reserva
 
-  texto_sms = (
-      f"PASE {int(st.session_state.total_reserva)} {sinpe_para_envio} Rifa"
-  )
+  texto_sms = f"PASE {int(st.session_state.total_reserva)} {sinpe_final} Rifa"
   texto_sms_codificado = urllib.parse.quote(texto_sms)
   url_sms = f"sms:{numero_banco}?body={texto_sms_codificado}"
 
@@ -210,12 +241,10 @@ if st.session_state.reserva_confirmada:
       f"📅 *Fecha del sorteo:* {st.session_state.fecha_reserva}\n"
       f"🎟️ *{txt_nums_wa}\n"
       f"💰 *Monto transferido:* ₡{st.session_state.total_reserva:,.0f} CRC\n\n"
-      f"Adjunto el comprobante del SINPE Móvil enviado al {sinpe_para_envio}."
+      f"Adjunto el comprobante del SINPE Móvil enviado al {sinpe_final}."
   )
   mensaje_wa_codificado = urllib.parse.quote(mensaje_wa)
-  url_whatsapp = (
-      f"https://wa.me/506{sinpe_para_envio}?text={mensaje_wa_codificado}"
-  )
+  url_whatsapp = f"https://wa.me/506{sinpe_final}?text={mensaje_wa_codificado}"
 
   col_btn1, col_btn2 = st.columns(2)
 
@@ -278,7 +307,6 @@ else:
     with tab:
       inicio = idx * 10
 
-      # Fila 1: primeros 5 números
       cols_fila1 = st.columns(5)
       for offset in range(5):
         i = inicio + offset
@@ -294,7 +322,6 @@ else:
               if num_str in st.session_state.seleccionados_global:
                 st.session_state.seleccionados_global.remove(num_str)
 
-      # Fila 2: siguientes 5 números
       cols_fila2 = st.columns(5)
       for offset in range(5, 10):
         i = inicio + offset
@@ -362,7 +389,6 @@ else:
           st.error(msg_fallidos)
 
         if exitosos:
-          # Guardar todos los datos necesarios en la sesión
           st.session_state.reserva_confirmada = True
           st.session_state.numeros_reserva = exitosos
           st.session_state.total_reserva = total
