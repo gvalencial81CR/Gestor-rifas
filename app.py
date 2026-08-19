@@ -49,7 +49,6 @@ def conectar_db():
         )
     """)
 
-  # Garantizar que existe la columna estado_pago si la tabla es antigua
   try:
     c.execute(
         "ALTER TABLE numeros_comprados ADD COLUMN estado_pago TEXT DEFAULT"
@@ -182,51 +181,7 @@ with st.sidebar:
   st.title("⚙️ Panel de Control")
 
   # -------------------------------------------------------------
-  # 📊 RESUMEN DE VENTAS Y PORCENTAJES (KPIs)
-  # -------------------------------------------------------------
-  mapa_ocupados = obtener_mapa_numeros_ocupados()
-  total_reservados = len(mapa_ocupados)
-  total_pagados = sum(
-      1 for est in mapa_ocupados.values() if "Pagado" in str(est)
-  )
-  total_pendientes = total_reservados - total_pagados
-
-  pct_ocupados = (total_reservados / 100) * 100
-  pct_pagados = (
-      (total_pagados / total_reservados * 100) if total_reservados > 0 else 0
-  )
-  pct_pendientes = (
-      (total_pendientes / total_reservados * 100) if total_reservados > 0 else 0
-  )
-
-  precio_num = int(config_actual["rifa_precio"])
-  recaudado = total_pagados * precio_num
-
-  st.markdown("### 📊 Resumen Ejecutivo de Ventas")
-
-  col_m1, col_m2 = st.columns(2)
-  with col_m1:
-    st.metric(
-        "Total Ocupados",
-        f"{total_reservados}/100",
-        delta=f"{pct_ocupados:.0f}% meta",
-    )
-    st.metric("✅ Pagados", f"{total_pagados}", delta=f"{pct_pagados:.0f}% del total")
-  with col_m2:
-    st.metric(
-        "⏳ Pendientes", f"{total_pendientes}", delta=f"{pct_pendientes:.0f}% del total"
-    )
-    st.metric("💰 Recaudado", f"₡{recaudado:,.0f}")
-
-  st.progress(total_reservados / 100)
-  st.caption(
-      f"Progreso de la Rifa: **{total_reservados}% vendido/reservado**"
-  )
-
-  st.write("---")
-
-  # -------------------------------------------------------------
-  # 🔑 MODO ADMINISTRADOR
+  # 🔑 MODO ADMINISTRADOR (SOLO VISIBLE CON CONTRASEÑA)
   # -------------------------------------------------------------
   st.subheader("🔑 Modo Administrador")
   clave_admin = st.text_input(
@@ -235,6 +190,53 @@ with st.sidebar:
 
   if clave_admin == "1234":
     st.success("✅ Acceso Concedido")
+
+    # 📊 RESUMEN DE VENTAS Y PORCENTAJES (KPIs) - SOLO ADMIN
+    mapa_ocupados = obtener_mapa_numeros_ocupados()
+    total_reservados = len(mapa_ocupados)
+    total_pagados = sum(
+        1 for est in mapa_ocupados.values() if "Pagado" in str(est)
+    )
+    total_pendientes = total_reservados - total_pagados
+
+    pct_ocupados = (total_reservados / 100) * 100
+    pct_pagados = (
+        (total_pagados / total_reservados * 100) if total_reservados > 0 else 0
+    )
+    pct_pendientes = (
+        (total_pendientes / total_reservados * 100)
+        if total_reservados > 0
+        else 0
+    )
+
+    precio_num = int(config_actual["rifa_precio"])
+    recaudado = total_pagados * precio_num
+
+    st.write("---")
+    st.markdown("### 📊 Resumen de Ventas (Privado)")
+
+    col_m1, col_m2 = st.columns(2)
+    with col_m1:
+      st.metric(
+          "Total Ocupados",
+          f"{total_reservados}/100",
+          delta=f"{pct_ocupados:.0f}% meta",
+      )
+      st.metric(
+          "✅ Pagados", f"{total_pagados}", delta=f"{pct_pagados:.0f}% del total"
+      )
+    with col_m2:
+      st.metric(
+          "⏳ Pendientes",
+          f"{total_pendientes}",
+          delta=f"{pct_pendientes:.0f}% del total",
+      )
+      st.metric("💰 Recaudado", f"₡{recaudado:,.0f}")
+
+    st.progress(total_reservados / 100)
+    st.caption(
+        f"Progreso de la Rifa: **{total_reservados}% vendido/reservado**"
+    )
 
     df_reservas = obtener_todas_las_reservas()
 
@@ -251,7 +253,9 @@ with st.sidebar:
           "Número:", lista_numeros, key="sel_num_estatus"
       )
       nuevo_est = st.selectbox(
-          "Nuevo Estado:", ["✅ Pagado", "⏳ Pendiente"], key="sel_nuevo_estatus"
+          "Nuevo Estado:",
+          ["✅ Pagado", "⏳ Pendiente"],
+          key="sel_nuevo_estatus",
       )
 
       if st.button("💾 Guardar Estatus"):
@@ -428,8 +432,8 @@ else:
 
   st.write("### 🔢 Selecciona tus números por decenas:")
   st.caption(
-      "🟢 **[PAGADO]** Número verificado | ❌ **Reservado** Pendiente de pago"
-      " | ⚪ **Disponible**"
+      "✅ **Confirmado (Pagado)** | ❌ **Reservado (Pendiente)** | ⚪"
+      " **Disponible**"
   )
 
   rangos = [
@@ -460,9 +464,7 @@ else:
           if num_str in mapa_numeros:
             estatus = mapa_numeros[num_str]
             etiqueta_btn = (
-                f"🟢 {num_str} [PAGADO]"
-                if "Pagado" in str(estatus)
-                else f"❌ {num_str}"
+                f"✅ {num_str}" if "Pagado" in str(estatus) else f"❌ {num_str}"
             )
             st.button(etiqueta_btn, key=f"btn_{num_str}", disabled=True)
           else:
@@ -482,9 +484,7 @@ else:
           if num_str in mapa_numeros:
             estatus = mapa_numeros[num_str]
             etiqueta_btn = (
-                f"🟢 {num_str} [PAGADO]"
-                if "Pagado" in str(estatus)
-                else f"❌ {num_str}"
+                f"✅ {num_str}" if "Pagado" in str(estatus) else f"❌ {num_str}"
             )
             st.button(etiqueta_btn, key=f"btn_{num_str}", disabled=True)
           else:
