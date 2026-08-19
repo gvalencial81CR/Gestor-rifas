@@ -133,7 +133,7 @@ def guardar_configuracion(titulo, precio, num_sinpe, nombre_sinpe, fecha_str, to
     conn.close()
 
 
-# --- FUNCIONES PARA PREMIOS ---
+# --- FUNCIONES PARA PREMIO ÚNICO ---
 def procesar_imagen_a_base64(uploaded_file):
     if uploaded_file is not None:
         bytes_data = uploaded_file.getvalue()
@@ -145,6 +145,8 @@ def procesar_imagen_a_base64(uploaded_file):
 def agregar_premio(lugar, nombre, descripcion, imagen_data):
     conn = conectar_db()
     c = conn.cursor()
+    # Borra todos los premios anteriores para asegurar que SOLO HAYA 1 PREMIO
+    c.execute("DELETE FROM premios")
     c.execute(
         "INSERT INTO premios (lugar, nombre, descripcion, imagen_data) VALUES (?, ?, ?, ?)",
         (lugar, nombre, descripcion, imagen_data),
@@ -156,7 +158,7 @@ def agregar_premio(lugar, nombre, descripcion, imagen_data):
 def obtener_premios():
     conn = conectar_db()
     c = conn.cursor()
-    c.execute("SELECT id, lugar, nombre, descripcion, imagen_data FROM premios ORDER BY id ASC")
+    c.execute("SELECT id, lugar, nombre, descripcion, imagen_data FROM premios ORDER BY id DESC LIMIT 1")
     filas = c.fetchall()
     conn.close()
     return filas
@@ -389,25 +391,24 @@ with st.sidebar:
         else:
             st.info("No hay reservas registradas por el momento.")
 
-        # --- GESTIÓN DE PREMIOS ---
+        # --- GESTIÓN DE PREMIO ÚNICO ---
         st.write("---")
-        st.write("### 🎁 Administración de Premios")
+        st.write("### 🎁 Configurar Premio Único")
         with st.form("form_nuevo_premio", clear_on_submit=True):
-            premio_lugar = st.text_input("Lugar / Posición:", placeholder="Ej: 🥇 1er Lugar")
             premio_nombre = st.text_input("Nombre del Premio:", placeholder="Ej: Pantalla Smart TV 55''")
-            premio_desc = st.text_area("Descripción:", placeholder="Marca LG 4K Ultra HD...")
+            premio_desc = st.text_area("Descripción del Premio:", placeholder="Marca LG 4K Ultra HD...")
             
             archivo_imagen = st.file_uploader(
-                "📷 Seleccionar imagen desde este dispositivo:", 
+                "📷 Seleccionar foto del premio:", 
                 type=["png", "jpg", "jpeg", "webp"]
             )
 
-            btn_guardar_premio = st.form_submit_button("➕ Agregar Premio")
+            btn_guardar_premio = st.form_submit_button("💾 Guardar Premio Único")
 
             if btn_guardar_premio:
                 if premio_nombre.strip():
                     img_base64 = procesar_imagen_a_base64(archivo_imagen)
-                    agregar_premio(premio_lugar, premio_nombre, premio_desc, img_base64)
+                    agregar_premio("🏆 Premio Único", premio_nombre, premio_desc, img_base64)
                     st.success(f"¡Premio '{premio_nombre}' guardado exitosamente!")
                     st.rerun()
                 else:
@@ -415,14 +416,14 @@ with st.sidebar:
 
         premios_registrados = obtener_premios()
         if premios_registrados:
-            st.write("#### Premios Registrados:")
+            st.write("#### Premio Actual:")
             for p in premios_registrados:
                 p_id, p_lugar, p_nombre, p_desc, p_img = p
                 c_p1, c_p2 = st.columns([3, 1])
                 with c_p1:
-                    st.write(f"**{p_lugar}**: {p_nombre}")
+                    st.write(f"**{p_nombre}**")
                 with c_p2:
-                    if st.button("🗑️", key=f"del_p_{p_id}"):
+                    if st.button("🗑️ Borrar", key=f"del_p_{p_id}"):
                         eliminar_premio(p_id)
                         st.rerun()
 
@@ -514,36 +515,35 @@ nombre_sinpe = config_actual["sinpe_nombre"]
 st.title(titulo_rifa)
 st.caption(f"📅 **Fecha del Sorteo:** {fecha_formateada}")
 
-# 🎁 GALERÍA PÚBLICA DE PREMIOS (IMAGEN A UN LADO CON INFORMACIÓN COMPLETA)
+# 🎁 VISTA PÚBLICA DEL PREMIO ÚNICO
 lista_premios = obtener_premios()
 if lista_premios:
-    st.write("### 🎁 Premios a Sortear")
-    for p in lista_premios:
-        _, p_lugar, p_nombre, p_desc, p_img = p
+    p = lista_premios[0]
+    _, p_lugar, p_nombre, p_desc, p_img = p
+    
+    with st.container():
+        st.markdown('<div class="premio-box">', unsafe_allow_html=True)
         
-        with st.container():
-            st.markdown('<div class="premio-box">', unsafe_allow_html=True)
-            
-            if p_img:
-                col_img, col_txt = st.columns([1, 2])
-                with col_img:
-                    try:
-                        img_bytes = base64.b64decode(p_img)
-                        st.image(img_bytes, use_container_width=True)
-                    except Exception:
-                        st.caption("📷 [Imagen no disponible]")
-                with col_txt:
-                    st.markdown(f"#### {p_lugar}")
-                    st.markdown(f"### {p_nombre}")
-                    if p_desc and p_desc.strip():
-                        st.write(p_desc)
-            else:
-                st.markdown(f"#### {p_lugar}")
-                st.markdown(f"### {p_nombre}")
+        if p_img:
+            col_img, col_txt = st.columns([1, 2])
+            with col_img:
+                try:
+                    img_bytes = base64.b64decode(p_img)
+                    st.image(img_bytes, use_container_width=True)
+                except Exception:
+                    st.caption("📷 [Imagen no disponible]")
+            with col_txt:
+                st.markdown(f"### 🎁 Premio Único")
+                st.markdown(f"## {p_nombre}")
                 if p_desc and p_desc.strip():
                     st.write(p_desc)
-                    
-            st.markdown('</div>', unsafe_allow_html=True)
+        else:
+            st.markdown(f"### 🎁 Premio Único")
+            st.markdown(f"## {p_nombre}")
+            if p_desc and p_desc.strip():
+                st.write(p_desc)
+                
+        st.markdown('</div>', unsafe_allow_html=True)
     st.write("---")
 
 # ⚡ INDICADOR DE DISPONIBILIDAD
