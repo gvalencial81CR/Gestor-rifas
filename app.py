@@ -40,13 +40,13 @@ st.markdown(
         text-align: center;
         margin-bottom: 15px;
     }
-    .premio-card {
+    .premio-box {
         border: 1px solid #e0e0e0;
-        padding: 10px;
-        border-radius: 10px;
-        text-align: center;
+        padding: 15px;
+        border-radius: 12px;
         background-color: #ffffff;
-        margin-bottom: 10px;
+        margin-bottom: 15px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
     }
     </style>
 """,
@@ -54,7 +54,7 @@ st.markdown(
 )
 
 
-# --- CONEXIÓN Y FUNCIONES DE BASE DE DATOS (NUEVA BASE REINICIADA: rifa_v3.db) ---
+# --- CONEXIÓN Y FUNCIONES DE BASE DE DATOS (rifa_v3.db) ---
 def conectar_db():
     conn = sqlite3.connect("rifa_v3.db")
     c = conn.cursor()
@@ -78,7 +78,7 @@ def conectar_db():
         )
     """)
 
-    # Tabla de Premios (con soporte directo para guardar la foto cargada desde el dispositivo)
+    # Tabla de Premios (con imágenes guardadas en base64)
     c.execute("""
         CREATE TABLE IF NOT EXISTS premios (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -133,7 +133,7 @@ def guardar_configuracion(titulo, precio, num_sinpe, nombre_sinpe, fecha_str, to
     conn.close()
 
 
-# --- FUNCIONES PARA CONVERTIR FOTO SUBIDA DESDE CELULAR/COMPU ---
+# --- FUNCIONES PARA PREMIOS ---
 def procesar_imagen_a_base64(uploaded_file):
     if uploaded_file is not None:
         bytes_data = uploaded_file.getvalue()
@@ -390,7 +390,7 @@ with st.sidebar:
         else:
             st.info("No hay reservas registradas por el momento.")
 
-        # --- GESTIÓN DE PREMIOS (ELEGIR FOTO DESDE EL DISPOSITIVO) ---
+        # --- GESTIÓN DE PREMIOS ---
         st.write("---")
         st.write("### 🎁 Administración de Premios")
         with st.form("form_nuevo_premio", clear_on_submit=True):
@@ -398,7 +398,6 @@ with st.sidebar:
             premio_nombre = st.text_input("Nombre del Premio:", placeholder="Ej: Pantalla Smart TV 55''")
             premio_desc = st.text_area("Descripción:", placeholder="Marca LG 4K Ultra HD...")
             
-            # Selector de archivo desde Celular / Computadora
             archivo_imagen = st.file_uploader(
                 "📷 Seleccionar imagen desde este dispositivo:", 
                 type=["png", "jpg", "jpeg", "webp"]
@@ -516,22 +515,34 @@ nombre_sinpe = config_actual["sinpe_nombre"]
 st.title(titulo_rifa)
 st.caption(f"📅 **Fecha del Sorteo:** {fecha_formateada}")
 
-# 🎁 GALERÍA PÚBLICA DE PREMIOS
+# 🎁 GALERÍA PÚBLICA DE PREMIOS (IMAGEN A UN LADO CON INFORMACIÓN COMPLETA)
 lista_premios = obtener_premios()
 if lista_premios:
     st.write("### 🎁 Premios a Sortear")
-    cols_premios = st.columns(min(len(lista_premios), 3))
-    for idx, p in enumerate(lista_premios):
+    for p in lista_premios:
         _, p_lugar, p_nombre, p_desc, p_img = p
-        col_target = cols_premios[idx % 3]
-        with col_target:
-            with st.container():
-                st.markdown(f"#### {p_lugar}")
-                if p_img:
+        
+        with st.container():
+            st.markdown('<div class="premio-box">', unsafe_allow_html=True)
+            
+            # Si hay foto, organizamos en 2 columnas: Foto a un lado, información al otro
+            if p_img:
+                col_img, col_txt = st.columns([1, 2])
+                with col_img:
                     st.image(p_img, use_column_width=True)
-                st.markdown(f"**{p_nombre}**")
+                with col_txt:
+                    st.markdown(f"#### {p_lugar}")
+                    st.markdown(f"### {p_nombre}")
+                    if p_desc.strip():
+                        st.write(p_desc)
+            else:
+                # Si no hay foto, muestra únicamente la información limpia
+                st.markdown(f"#### {p_lugar}")
+                st.markdown(f"### {p_nombre}")
                 if p_desc.strip():
-                    st.caption(p_desc)
+                    st.write(p_desc)
+                    
+            st.markdown('</div>', unsafe_allow_html=True)
     st.write("---")
 
 # ⚡ INDICADOR DE DISPONIBILIDAD
