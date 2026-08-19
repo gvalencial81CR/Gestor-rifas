@@ -14,16 +14,47 @@ st.set_page_config(
 # Configura aquí tu dirección web desplegada
 URL_APP = "https://tu-app-de-rifa.streamlit.app"
 
-# Estilos CSS personalizados
+# Estilos CSS personalizados (FORZAR CUADRÍCULA 10x10 EN CELULARES)
 st.markdown(
     """
     <style>
-    .stButton>button {
-        width: 100%;
-        height: 3em;
-        font-weight: bold;
-        border-radius: 8px;
+    /* Forzar a Streamlit a no apilar columnas en pantallas pequeñas */
+    [data-testid="column"] {
+        width: 10% !important;
+        flex: 1 1 10% !important;
+        min-width: 10% !important;
+        padding: 1px !important;
     }
+    
+    /* Contenedor de filas para mantener distribución horizontal */
+    [data-testid="stHorizontalBlock"] {
+        flex-wrap: nowrap !important;
+        gap: 2px !important;
+    }
+
+    /* Estilo responsivo para botones de números */
+    .stButton>button {
+        width: 100% !important;
+        height: 2.8em !important;
+        font-weight: bold !important;
+        font-size: 11px !important;
+        border-radius: 6px !important;
+        padding: 0px !important;
+        margin: 0px !important;
+    }
+
+    /* Estilos de casillas de verificación para selección de números */
+    .stCheckbox {
+        text-align: center;
+        margin: 0px auto;
+    }
+    .stCheckbox > label {
+        font-size: 12px !important;
+        font-weight: bold;
+        padding-left: 20px !important;
+    }
+
+    /* Cajas y tarjetas */
     .metric-card {
         background-color: #f8f9fa;
         border: 1px solid #e9ecef;
@@ -626,7 +657,7 @@ with tab_comprar:
             st.session_state.seleccionados_global = []
             st.rerun()
 
-    # --- VISTA 2: SELECCIÓN DE NÚMEROS (CUADRÍCULA CONTINUA 10x10) ---
+    # --- VISTA 2: SELECCIÓN DE NÚMEROS (FORZADO 10x10 EN MÓVIL Y DESKTOP) ---
     else:
         st.subheader("Selecciona tus números")
         st.caption(
@@ -636,7 +667,6 @@ with tab_comprar:
 
         mapa_numeros = obtener_mapa_numeros_ocupados()
 
-        # Cuadrícula única de 10 columnas por fila (00 al 99)
         columnas_por_fila = 10
         total_nums = list(range(0, total_numeros_config))
 
