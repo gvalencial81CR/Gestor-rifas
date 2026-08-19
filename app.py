@@ -29,15 +29,27 @@ st.markdown(
 def conectar_db():
   conn = sqlite3.connect("rifa.db")
   c = conn.cursor()
-  # Tabla de reservas
+
+  # Tabla de reservas (con estado_pago)
   c.execute("""
         CREATE TABLE IF NOT EXISTS numeros_comprados (
             numero TEXT PRIMARY KEY,
             comprador TEXT,
             telefono TEXT,
+            estado_pago TEXT DEFAULT 'Pendiente',
             fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
+
+  # Garantizar que existe la columna estado_pago si la tabla es antigua
+  try:
+    c.execute(
+        "ALTER TABLE numeros_comprados ADD COLUMN estado_pago TEXT DEFAULT"
+        " 'Pendiente'"
+    )
+  except sqlite3.OperationalError:
+    pass
+
   # Tabla de configuración permanente
   c.execute("""
         CREATE TABLE IF NOT EXISTS configuracion (
@@ -103,8 +115,8 @@ def guardar_reserva(numeros, nombre, telefono):
   for num in numeros:
     try:
       c.execute(
-          "INSERT INTO numeros_comprados (numero, comprador, telefono) VALUES"
-          " (?, ?, ?)",
+          "INSERT INTO numeros_comprados (numero, comprador, telefono,"
+          " estado_pago) VALUES (?, ?, ?, 'Pendiente')",
           (num, nombre, telefono),
       )
       exitosos.append(num)
@@ -120,12 +132,23 @@ def obtener_todas_las_reservas():
   conn = conectar_db()
   query = (
       "SELECT numero AS 'Número', comprador AS 'Comprador', telefono AS"
-      " 'Teléfono', fecha AS 'Fecha Reserva' FROM numeros_comprados ORDER BY"
-      " numero ASC"
+      " 'Teléfono', estado_pago AS 'Estatus Pago', fecha AS 'Fecha Reserva'"
+      " FROM numeros_comprados ORDER BY numero ASC"
   )
   df = pd.read_sql_query(query, conn)
   conn.close()
   return df
+
+
+def cambiar_estado_pago(numero, nuevo_estado):
+  conn = conectar_db()
+  c = conn.cursor()
+  c.execute(
+      "UPDATE numeros_comprados SET estado_pago = ? WHERE numero = ?",
+      (nuevo_estado, numero),
+  )
+  conn.commit()
+  conn.close()
 
 
 def liberar_numero(numero):
@@ -145,82 +168,112 @@ if "reserva_confirmada" not in st.session_state:
 if "seleccionados_global" not in st.session_state:
   st.session_state.seleccionados_global = []
 
-# --- PANEL LATERAL CON FORMULARIO ---
+# --- PANEL LATERAL ---
 with st.sidebar:
-  st.header("⚙️ Configuración de la Rifa")
+  st.title("⚙️ Panel de Control")
 
-  with st.form("form_configuracion"):
-    nuevo_titulo = st.text_input(
-        "Nombre de la Rifa:",
-        value=config_actual["rifa_titulo"],
-        key="input_titulo",
-    )
-    fecha_sorteo = st.date_input("Fecha del Sorteo:", value=datetime.today())
-    nuevo_precio = st.number_input(
-        "Precio por número (₡ CRC):",
-        min_value=100,
-        value=int(config_actual["rifa_precio"]),
-        step=100,
-        key="input_precio",
-    )
+  # -------------------------------------------------------------
+  # 🔑 SECCIÓN ADMIN Y ESTATUS DE PAGOS (AHORA VISIBLE DIRECTAMENTE)
+  # -------------------------------------------------------------
+  st.subheader("🔑 Modo Administrador")
+  clave_admin = st.text_input(
+      "Contraseña Admin:", type="password", key="pass_admin"
+  )
+
+  if clave_admin == "1234":
+    st.success("✅ Acceso Concedido")
+
+    df_reservas = obtener_todas_las_reservas()
 
     st.write("---")
-    st.header("📱 Datos de SINPE Móvil")
-    nuevo_sinpe = st.text_input(
-        "Tu Número de SINPE Móvil:",
-        value=config_actual["sinpe_numero"],
-        key="input_sinpe_num",
-    )
-    nuevo_nombre_sinpe = st.text_input(
-        "Nombre Titular del SINPE:",
-        value=config_actual["sinpe_nombre"],
-        key="input_sinpe_nom",
-    )
+    st.write("### 📊 ESTATUS DE PAGOS")
 
-    btn_guardar = st.form_submit_button("💾 Guardar Configuración")
+    if not df_reservas.empty:
+      # Mostrar la lista completa con los estatus
+      st.dataframe(df_reservas, use_container_width=True)
 
-    if btn_guardar:
-      sinpe_limpio = nuevo_sinpe.replace("-", "").replace(" ", "").strip()
-      guardar_configuracion(
-          nuevo_titulo, nuevo_precio, sinpe_limpio, nuevo_nombre_sinpe
+      st.write("#### ✏️ Cambiar Estatus de Pago")
+      lista_numeros = df_reservas["Número"].tolist()
+
+      num_a_pagar = st.selectbox(
+          "Número:", lista_numeros, key="sel_num_estatus"
       )
-      st.success("¡Configuración guardada permanentemente!")
-      st.rerun()
+      nuevo_est = st.selectbox(
+          "Nuevo Estado:", ["✅ Pagado", "⏳ Pendiente"], key="sel_nuevo_estatus"
+      )
+
+      if st.button("💾 Guardar Estatus"):
+        cambiar_estado_pago(num_a_pagar, nuevo_est)
+        st.success(f"¡Número {num_a_pagar} actualizado a {nuevo_est}!")
+        st.rerun()
+
+      st.write("---")
+      st.write("#### 🔓 Cancelar Reserva (Liberar)")
+      num_a_liberar = st.selectbox("Número a liberar:", lista_numeros, key="sel_num_liberar")
+
+      if st.button("🔓 Liberar Número"):
+        liberar_numero(num_a_liberar)
+        st.success(f"¡Número {num_a_liberar} liberado!")
+        st.rerun()
+    else:
+      st.info("No hay reservas registradas por el momento.")
+
+    st.write("---")
+
+  elif clave_admin != "":
+    st.error("Contraseña incorrecta")
+
+  # -------------------------------------------------------------
+  # CONFIGURACIÓN DE LA RIFA
+  # -------------------------------------------------------------
+  with st.expander("⚙️ Configuración de la Rifa (SINPE / Nombre)"):
+    with st.form("form_configuracion"):
+      nuevo_titulo = st.text_input(
+          "Nombre de la Rifa:",
+          value=config_actual["rifa_titulo"],
+          key="input_titulo",
+      )
+      fecha_sorteo = st.date_input("Fecha del Sorteo:", value=datetime.today())
+      nuevo_precio = st.number_input(
+          "Precio por número (₡ CRC):",
+          min_value=100,
+          value=int(config_actual["rifa_precio"]),
+          step=100,
+          key="input_precio",
+      )
+
+      st.write("---")
+      nuevo_sinpe = st.text_input(
+          "Tu Número SINPE:",
+          value=config_actual["sinpe_numero"],
+          key="input_sinpe_num",
+      )
+      nuevo_nombre_sinpe = st.text_input(
+          "Titular del SINPE:",
+          value=config_actual["sinpe_nombre"],
+          key="input_sinpe_nom",
+      )
+
+      btn_guardar = st.form_submit_button("💾 Guardar Configuración")
+
+      if btn_guardar:
+        sinpe_limpio = nuevo_sinpe.replace("-", "").replace(" ", "").strip()
+        guardar_configuracion(
+            nuevo_titulo, nuevo_precio, sinpe_limpio, nuevo_nombre_sinpe
+        )
+        st.success("¡Configuración guardada!")
+        st.rerun()
+
+  # Variables de fecha por si no abre el expander
+  if "fecha_sorteo" not in locals():
+    fecha_sorteo = datetime.today()
 
   st.write("---")
-  st.write("### 📊 Estado de Ventas")
+  st.write("### 📈 Ventas Totales")
   ocupados = obtener_numeros_ocupados()
   st.metric("Números Vendidos / Reservados", f"{len(ocupados)} / 100")
 
-  st.write("---")
-  # --- PESTAÑA DE ADMINISTRACIÓN ---
-  with st.expander("🔑 Admin: Gestionar y Liberar Números"):
-    clave_admin = st.text_input("Contraseña Admin:", type="password")
-
-    if clave_admin == "1234":
-      st.success("Acceso concedido")
-
-      df_reservas = obtener_todas_las_reservas()
-
-      if not df_reservas.empty:
-        st.write("### 📋 Reservas Actuales")
-        st.dataframe(df_reservas, use_container_width=True)
-
-        lista_numeros_reservados = df_reservas["Número"].tolist()
-        num_a_liberar = st.selectbox(
-            "Selecciona un número a LIBERAR:", lista_numeros_reservados
-        )
-
-        if st.button("🔓 Liberar Número"):
-          liberar_numero(num_a_liberar)
-          st.success(f"¡El número {num_a_liberar} ha sido liberado!")
-          st.rerun()
-      else:
-        st.info("No hay números reservados por el momento.")
-    elif clave_admin != "":
-      st.error("Contraseña incorrecta")
-
-# Variables de configuración activas extraídas de la DB
+# Variables de configuración activas
 fecha_formateada = fecha_sorteo.strftime("%d/%m/%Y")
 titulo_rifa = config_actual["rifa_titulo"]
 precio_numero = int(config_actual["rifa_precio"])
