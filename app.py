@@ -3,13 +3,12 @@ import sqlite3
 import urllib.parse
 import pandas as pd
 
-# Configuración de la página (layout centrado ideal para teléfonos)
+# Configuración de la página
 st.set_page_config(page_title="Gestor de Rifas CR 🇨🇷", layout="centered", page_icon="🎟️")
 
-# Estilos CSS personalizados para mejorar el tamaño de los botones en celular
+# Estilos CSS personalizados para mejorar el tamaño de las casillas en celular
 st.markdown("""
     <style>
-    /* Estilo para hacer botones táctiles más grandes en celular */
     .stButton>button {
         width: 100%;
         height: 3em;
@@ -123,37 +122,46 @@ st.write("---")
 
 numeros_bloqueados = obtener_numeros_ocupados()
 
-st.write("### 🔢 Selecciona un rango de números:")
-st.caption("🔴 Indican números Ocupados | Selecciona casillas organizadas por decenas")
+st.write("### 🔢 Selecciona tus números por decenas:")
+st.caption("🔴 Indica número reservado/ocupado | ⚪ Número disponible")
 
-# Lista de rangos de decenas para el teléfono
+# Pestañas horizontales por decenas
 rangos = [
     "00 - 09", "10 - 19", "20 - 29", "30 - 39", "40 - 49",
     "50 - 59", "60 - 69", "70 - 79", "80 - 89", "90 - 99"
 ]
 
-# Pestañas horizontales para navegar cómodamente por decenas
 tabs = st.tabs(rangos)
 
-numeros_seleccionados = []
-
-# Mantener la lista de elegidos entre navegación de pestañas
 if "seleccionados_global" not in st.session_state:
     st.session_state.seleccionados_global = []
 
 for idx, tab in enumerate(tabs):
     with tab:
         inicio = idx * 10
-        fin = inicio + 10
         
-        # Usamos 5 columnas en lugar de 10 para que los números se vean grandes en celular
-        cols = st.columns(5)
-        
-        for i in range(inicio, fin):
+        # Fila 1: primeros 5 números de la decena
+        cols_fila1 = st.columns(5)
+        for offset in range(5):
+            i = inicio + offset
             num_str = f"{i:02d}"
-            col_idx = (i - inicio) % 5
-            
-            with cols[col_idx]:
+            with cols_fila1[offset]:
+                if num_str in numeros_bloqueados:
+                    st.button(f"❌ {num_str}", key=f"btn_{num_str}", disabled=True)
+                else:
+                    if st.checkbox(num_str, key=f"num_{num_str}"):
+                        if num_str not in st.session_state.seleccionados_global:
+                            st.session_state.seleccionados_global.append(num_str)
+                    else:
+                        if num_str in st.session_state.seleccionados_global:
+                            st.session_state.seleccionados_global.remove(num_str)
+
+        # Fila 2: siguientes 5 números de la decena
+        cols_fila2 = st.columns(5)
+        for offset in range(5, 10):
+            i = inicio + offset
+            num_str = f"{i:02d}"
+            with cols_fila2[offset - 5]:
                 if num_str in numeros_bloqueados:
                     st.button(f"❌ {num_str}", key=f"btn_{num_str}", disabled=True)
                 else:
@@ -175,8 +183,12 @@ if "reserva_confirmada" not in st.session_state:
 if numeros_seleccionados:
     total = len(numeros_seleccionados) * precio_numero
     num_limpio = num_sinpe.replace("-", "").replace(" ", "")
+    cant_seleccionados = len(numeros_seleccionados)
     
-    st.success(f"**Números elegidos ({len(numeros_seleccionados)}):** {', '.join(numeros_seleccionados)}")
+    # Textos adaptables según singular o plural
+    etiqueta_elegidos = "Número elegido" if cant_seleccionados == 1 else "Números elegidos"
+    
+    st.success(f"**{etiqueta_elegidos} ({cant_seleccionados}):** {', '.join(numeros_seleccionados)}")
     st.info(f"**Total a pagar:** ₡{total:,.0f} CRC")
     
     st.write("### 💳 Datos para pagar por SINPE Móvil")
@@ -200,7 +212,8 @@ if numeros_seleccionados:
             exitosos, fallidos = guardar_reserva(numeros_seleccionados, nombre_cliente, telefono_cliente)
             
             if fallidos:
-                st.error(f"Los siguientes números ya habían sido tomados: {', '.join(fallidos)}")
+                msg_fallidos = f"El número {fallidos[0]} ya había sido tomado." if len(fallidos) == 1 else f"Los siguientes números ya habían sido tomados: {', '.join(fallidos)}"
+                st.error(msg_fallidos)
             
             if exitosos:
                 st.session_state.reserva_confirmada = True
@@ -215,7 +228,17 @@ if numeros_seleccionados:
     # --- BLOQUE DE PAGO SI YA SE CONFIRMÓ LA RESERVA ---
     if st.session_state.reserva_confirmada:
         st.write("---")
-        st.success(f"🎉 ¡Números {', '.join(st.session_state.numeros_reserva)} reservados exitosamente!")
+        
+        cant_reserva = len(st.session_state.numeros_reserva)
+        if cant_reserva == "1" or cant_reserva == 1:
+            msg_exito = f"🎉 ¡Número {st.session_state.numeros_reserva[0]} reservado exitosamente!"
+            txt_nums_wa = f"Número:* {st.session_state.numeros_reserva[0]}"
+        else:
+            nums_texto = ", ".join(st.session_state.numeros_reserva)
+            msg_exito = f"🎉 ¡Números {nums_texto} reservados exitosamente!"
+            txt_nums_wa = f"Números:* {nums_texto}"
+            
+        st.success(msg_exito)
         st.subheader("📲 Elige cómo pagar / enviar comprobante:")
 
         bancos_sms = {
@@ -232,11 +255,10 @@ if numeros_seleccionados:
         texto_sms_codificado = urllib.parse.quote(texto_sms)
         url_sms = f"sms:{numero_banco}?body={texto_sms_codificado}"
 
-        nums_texto = ", ".join(st.session_state.numeros_reserva)
         mensaje_wa = (
             f"Hola! Acabo de reservar en la *{titulo_rifa}*:\n\n"
             f"👤 *Nombre:* {st.session_state.nombre_reserva}\n"
-            f"🎟️ *Números:* {nums_texto}\n"
+            f"🎟️ *{txt_nums_wa}\n"
             f"💰 *Monto transferido:* ₡{st.session_state.total_reserva:,.0f} CRC\n\n"
             f"Adjunto el comprobante del SINPE Móvil enviado al {num_sinpe}."
         )
