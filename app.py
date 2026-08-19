@@ -3,6 +3,7 @@ import urllib.parse
 from datetime import datetime
 import pandas as pd
 import streamlit as st
+import re
 
 # Configuración de la página
 st.set_page_config(
@@ -315,7 +316,9 @@ with st.sidebar:
       btn_guardar = st.form_submit_button("💾 Guardar Configuración")
 
       if btn_guardar:
-        sinpe_limpio = nuevo_sinpe.replace("-", "").replace(" ", "").strip()
+        sinpe_limpio = (
+            nuevo_sinpe.replace("-", "").replace(" ", "").strip()
+        )
         guardar_configuracion(
             nuevo_titulo, nuevo_precio, sinpe_limpio, nuevo_nombre_sinpe
         )
@@ -528,13 +531,39 @@ else:
     st.write("### 📋 Datos para la Reserva")
     nombre_cliente = st.text_input("Tu Nombre Completo:", key="input_nombre")
     telefono_cliente = st.text_input(
-        "Tu Número de Teléfono:", key="input_telefono"
+        "Tu Número de Teléfono (8 dígitos):",
+        key="input_telefono",
+        max_chars=8,
+        placeholder="88888888",
     )
 
     if st.button("🔒 Confirmar Reserva"):
-      if nombre_cliente.strip() != "" and telefono_cliente.strip() != "":
+      nombre_limpio = nombre_cliente.strip()
+      telefono_limpio = (
+          telefono_cliente.strip().replace(" ", "").replace("-", "")
+      )
+
+      # Validación del Nombre: Permite letras, espacios y caracteres con tilde o Ñ
+      es_nombre_valido = bool(
+          re.match(r"^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$", nombre_limpio)
+      )
+
+      # Validación del Teléfono: Exactamente 8 dígitos numéricos
+      es_telefono_valido = bool(re.match(r"^\d{8}$", telefono_limpio))
+
+      if not es_nombre_valido:
+        st.error(
+            "⚠️ Por favor ingresa un nombre válido (solo letras, sin números ni"
+            " símbolos)."
+        )
+      elif not es_telefono_valido:
+        st.error(
+            "⚠️ El teléfono debe contener **únicamente números** y tener"
+            " **exactamente 8 dígitos**."
+        )
+      else:
         exitosos, fallidos = guardar_reserva(
-            numeros_seleccionados, nombre_cliente, telefono_cliente
+            numeros_seleccionados, nombre_limpio, telefono_limpio
         )
 
         if fallidos:
@@ -550,15 +579,10 @@ else:
           st.session_state.reserva_confirmada = True
           st.session_state.numeros_reserva = exitosos
           st.session_state.total_reserva = total
-          st.session_state.nombre_reserva = nombre_cliente
+          st.session_state.nombre_reserva = nombre_limpio
           st.session_state.fecha_reserva = fecha_formateada
           st.session_state.titulo_reserva = titulo_rifa
           st.session_state.sinpe_reserva = num_limpio
           st.rerun()
-      else:
-        st.error(
-            "Por favor completa tu nombre y número de teléfono antes de"
-            " reservar."
-        )
   else:
     st.warning("Selecciona al menos un número disponible para continuar.")
