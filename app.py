@@ -138,8 +138,7 @@ def procesar_imagen_a_base64(uploaded_file):
     if uploaded_file is not None:
         bytes_data = uploaded_file.getvalue()
         base64_encoded = base64.b64encode(bytes_data).decode("utf-8")
-        mime_type = uploaded_file.type
-        return f"data:{mime_type};base64,{base64_encoded}"
+        return base64_encoded
     return ""
 
 
@@ -525,21 +524,23 @@ if lista_premios:
         with st.container():
             st.markdown('<div class="premio-box">', unsafe_allow_html=True)
             
-            # Si hay foto, organizamos en 2 columnas: Foto a un lado, información al otro
             if p_img:
                 col_img, col_txt = st.columns([1, 2])
                 with col_img:
-                    st.image(p_img, use_column_width=True)
+                    try:
+                        img_bytes = base64.b64decode(p_img)
+                        st.image(img_bytes, use_container_width=True)
+                    except Exception:
+                        st.caption("📷 [Imagen no disponible]")
                 with col_txt:
                     st.markdown(f"#### {p_lugar}")
                     st.markdown(f"### {p_nombre}")
-                    if p_desc.strip():
+                    if p_desc and p_desc.strip():
                         st.write(p_desc)
             else:
-                # Si no hay foto, muestra únicamente la información limpia
                 st.markdown(f"#### {p_lugar}")
                 st.markdown(f"### {p_nombre}")
-                if p_desc.strip():
+                if p_desc and p_desc.strip():
                     st.write(p_desc)
                     
             st.markdown('</div>', unsafe_allow_html=True)
