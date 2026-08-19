@@ -4,6 +4,7 @@ from datetime import datetime, date
 import pandas as pd
 import streamlit as st
 import re
+import base64
 
 # Configuración de la página
 st.set_page_config(
@@ -92,7 +93,7 @@ def conectar_db():
             lugar TEXT,
             nombre TEXT,
             descripcion TEXT,
-            imagen_url TEXT
+            imagen_data TEXT
         )
     """)
 
@@ -140,13 +141,22 @@ def guardar_configuracion(titulo, precio, num_sinpe, nombre_sinpe, fecha_str, to
     conn.close()
 
 
-# --- FUNCIONES PARA GESTIÓN DE PREMIOS ---
-def agregar_premio(lugar, nombre, descripcion, imagen_url):
+# --- FUNCIONES PARA GESTIÓN DE PREMIOS CON SUBIDA DE IMAGEN ---
+def procesar_imagen_a_base64(uploaded_file):
+    if uploaded_file is not None:
+        bytes_data = uploaded_file.getvalue()
+        base64_encoded = base64.b64encode(bytes_data).decode("utf-8")
+        mime_type = uploaded_file.type
+        return f"data:{mime_type};base64,{base64_encoded}"
+    return ""
+
+
+def agregar_premio(lugar, nombre, descripcion, imagen_data):
     conn = conectar_db()
     c = conn.cursor()
     c.execute(
-        "INSERT INTO premios (lugar, nombre, descripcion, imagen_url) VALUES (?, ?, ?, ?)",
-        (lugar, nombre, descripcion, imagen_url),
+        "INSERT INTO premios (lugar, nombre, descripcion, imagen_data) VALUES (?, ?, ?, ?)",
+        (lugar, nombre, descripcion, imagen_data),
     )
     conn.commit()
     conn.close()
@@ -155,7 +165,7 @@ def agregar_premio(lugar, nombre, descripcion, imagen_url):
 def obtener_premios():
     conn = conectar_db()
     c = conn.cursor()
-    c.execute("SELECT id, lugar, nombre, descripcion, imagen_url FROM premios ORDER BY id ASC")
+    c.execute("SELECT id, lugar, nombre, descripcion, imagen_data FROM premios ORDER BY id ASC")
     filas = c.fetchall()
     conn.close()
     return filas
@@ -170,7 +180,6 @@ def eliminar_premio(premio_id):
 
 
 def obtener_mapa_numeros_ocupados():
-    """Retorna un diccionario con los números ocupados y su estado de pago."""
     conn = conectar_db()
     c = conn.cursor()
     c.execute("SELECT numero, estado_pago FROM numeros_comprados")
@@ -233,7 +242,6 @@ def liberar_numero(numero):
 
 
 def reiniciar_rifa():
-    """Elimina todas las reservas dejando los números libres nuevamente."""
     conn = conectar_db()
     c = conn.cursor()
     c.execute("DELETE FROM numeros_comprados")
@@ -264,7 +272,7 @@ with st.sidebar:
     st.title("⚙️ Panel de Control")
 
     # -------------------------------------------------------------
-    # 🔑 MODO ADMINISTRADOR (SOLO VISIBLE CON CONTRASEÑA)
+    # 🔑 MODO ADMINISTRADOR
     # -------------------------------------------------------------
     st.subheader("🔑 Modo Administrador")
     clave_admin = st.text_input(
@@ -274,7 +282,6 @@ with st.sidebar:
     if clave_admin == "1234":
         st.success("✅ Acceso Concedido")
 
-        # 📊 RESUMEN DE VENTAS Y PORCENTAJES (KPIs) - SOLO ADMIN
         mapa_ocupados = obtener_mapa_numeros_ocupados()
         total_reservados = len(mapa_ocupados)
         total_pagados = sum(
@@ -391,24 +398,30 @@ with st.sidebar:
         else:
             st.info("No hay reservas registradas por el momento.")
 
-        # --- GESTIÓN DE PREMIOS (ADMIN) ---
+        # --- GESTIÓN DE PREMIOS (SUBIDA DIRECTA DE ARCHIVO DESDE CELULAR/COMPU) ---
         st.write("---")
         st.write("### 🎁 Administración de Premios")
-        with st.form("form_nuevo_premio"):
+        with st.form("form_nuevo_premio", clear_on_submit=True):
             premio_lugar = st.text_input("Lugar / Posición:", placeholder="Ej: 🥇 1er Lugar")
             premio_nombre = st.text_input("Nombre del Premio:", placeholder="Ej: Pantalla Smart TV 55''")
             premio_desc = st.text_area("Descripción:", placeholder="Marca LG 4K Ultra HD...")
-            premio_img = st.text_input("URL de Imagen:", placeholder="https://ejemplo.com/imagen.jpg")
+            
+            # Campo para subir la foto directamente desde el dispositivo
+            archivo_imagen = st.file_uploader(
+                "📷 Selecciona la imagen desde tu dispositivo:", 
+                type=["png", "jpg", "jpeg", "webp"]
+            )
 
             btn_guardar_premio = st.form_submit_button("➕ Agregar Premio")
 
             if btn_guardar_premio:
                 if premio_nombre.strip():
-                    agregar_premio(premio_lugar, premio_nombre, premio_desc, premio_img)
-                    st.success(f"¡Premio '{premio_nombre}' agregado!")
+                    img_base64 = procesar_imagen_a_base64(archivo_imagen)
+                    agregar_premio(premio_lugar, premio_nombre, premio_desc, img_base64)
+                    st.success(f"¡Premio '{premio_nombre}' guardado exitosamente!")
                     st.rerun()
                 else:
-                    st.error("Ingresa al menos el nombre del premio.")
+                    st.error("Por favor ingresa al menos el nombre del premio.")
 
         premios_registrados = obtener_premios()
         if premios_registrados:
@@ -423,7 +436,7 @@ with st.sidebar:
                         eliminar_premio(p_id)
                         st.rerun()
 
-        # --- ZONA PELIGROSA: REINICIAR / BORRAR RIFA COMPLETA ---
+        # --- ZONA PELIGROSA: REINICIAR RIFA ---
         st.write("---")
         st.write("#### ⚠️ Reiniciar / Borrar Rifa")
         confirmar_borrado = st.checkbox("Confirmo borrar TODAS las reservas", key="check_borrar")
@@ -431,12 +444,12 @@ with st.sidebar:
         if st.button("🗑️ Borrar Rifa Actual"):
             if confirmar_borrado:
                 reiniciar_rifa()
-                st.success("¡Se han borrado todas las reservas! La rifa está limpia nuevamente.")
+                st.success("¡Se han borrado todas las reservas!")
                 st.session_state.reserva_confirmada = False
                 st.session_state.seleccionados_global = []
                 st.rerun()
             else:
-                st.warning("Debes marcar la casilla de confirmación para habilitar el borrado.")
+                st.warning("Debes marcar la casilla de confirmación.")
 
         st.write("---")
 
@@ -444,7 +457,7 @@ with st.sidebar:
         st.error("Contraseña incorrecta")
 
     # -------------------------------------------------------------
-    # CONFIGURACIÓN DE LA RIFA
+    # CONFIGURACIÓN GENERAL DE LA RIFA
     # -------------------------------------------------------------
     with st.expander("⚙️ Configuración de la Rifa (SINPE / Nombre)"):
         with st.form("form_configuracion"):
@@ -522,17 +535,14 @@ if lista_premios:
         with col_target:
             with st.container():
                 st.markdown(f"#### {p_lugar}")
-                if p_img.strip():
-                    try:
-                        st.image(p_img, use_column_width=True)
-                    except Exception:
-                        st.caption("🖼️ (Imagen no disponible)")
+                if p_img:
+                    st.image(p_img, use_column_width=True)
                 st.markdown(f"**{p_nombre}**")
                 if p_desc.strip():
                     st.caption(p_desc)
     st.write("---")
 
-# ⚡ INDICADOR DE DISPONIBILIDAD Y URGENCIA
+# ⚡ INDICADOR DE DISPONIBILIDAD
 mapa_numeros_actual = obtener_mapa_numeros_ocupados()
 disponibles_count = total_numeros_config - len(mapa_numeros_actual)
 
@@ -541,7 +551,7 @@ if disponibles_count <= (total_numeros_config * 0.2) and disponibles_count > 0:
 else:
     st.info(f"🎟️ **Números disponibles:** {disponibles_count} de {total_numeros_config}")
 
-# 📜 REGLAMENTO / TÉRMINOS Y CONDICIONES
+# 📜 REGLAMENTO / TÉRMINOS
 with st.expander("📜 Reglamento y Términos de la Rifa"):
     st.markdown(f"""
     * **Valor del boleto:** ₡{precio_numero:,.0f} CRC cada número.
@@ -646,7 +656,7 @@ if st.session_state.reserva_confirmada:
         st.session_state.seleccionados_global = []
         st.rerun()
 
-# --- VISTA 2: SELECCIÓN DE NÚMEROS (SI NO HA CONFIRMADO) ---
+# --- VISTA 2: SELECCIÓN DE NÚMEROS ---
 else:
     st.subheader(f"Elige tus números (del 00 al {total_numeros_config - 1:02d})")
     st.write("---")
@@ -795,7 +805,7 @@ else:
         st.warning("Selecciona al menos un número disponible para continuar.")
 
 # -------------------------------------------------------------
-# 🔗 OPCIÓN DISCRETA AL FINAL DE PÁGINA PARA COMPARTIR
+# 🔗 PIE DE PÁGINA
 # -------------------------------------------------------------
 st.markdown("---")
 st.caption("🔗 **Compartir esta rifa:**")
