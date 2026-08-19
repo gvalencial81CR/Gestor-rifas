@@ -1,35 +1,36 @@
 import urllib.parse
 import streamlit as st
 
-# Reemplaza con la URL real de tu aplicación desplegada
-URL_APP = "https://tu-app-de-rifa.streamlit.app"
+# 1. Configuración general
+URL_APP = "https://tu-app-de-rifa.streamlit.app"  # Modifica con tu enlace real
 
-# Mensaje que se compartirá
-mensaje_compartir = (
-    f"¡Hola! Te invito a participar en esta rifa 🎟️. Ingresa al enlace para elegir tu número: {URL_APP}"
-)
+st.title("🎟️ Sistema de Rifas")
+st.write("Selecciona tus números y realiza tu reserva.")
 
-# Codificar texto para la URL de WhatsApp
-mensaje_encoded = urllib.parse.quote(mensaje_compartir)
-link_whatsapp = f"https://api.whatsapp.com/send?text={mensaje_encoded}"
+# --- AQUÍ VA TU LÓGICA DE SELECCIÓN DE NÚMEROS Y BASE DE DATOS ---
+# (Mantén aquí el código donde cargas números de 00 al 99, formulario de reserva, etc.)
 
-# Botón interactivo
-st.markdown(
-    f"""
-    <a href="{link_whatsapp}" target="_blank" style="text-decoration: none;">
-        <button style="
-            background-color: #25D366;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            font-size: 16px;
-            font-weight: bold;
-            border-radius: 8px;
-            cursor: pointer;
-            width: 100%;">
-            📲 Compartir en WhatsApp
-        </button>
-    </a>
-    """,
-    unsafe_allow_html=True,
-)
+st.info("Selecciona tus números disponibles y completa los datos de pago.")
+
+# -----------------------------------------------------------------
+
+# Divider o espacio para separar el flujo principal
+st.markdown("---")
+
+# --- SECCIÓN OPCIONAL AL FINAL DE LA PÁGINA ---
+st.caption("¿Quieres invitar a alguien más a participar?")
+
+# Botón discreto para compartir por WhatsApp
+mensaje = f"¡Hola! Te invito a participar en la rifa 🎟️. Elige tu número aquí: {URL_APP}"
+link_wa = f"https://api.whatsapp.com/send?text={urllib.parse.quote(mensaje)}"
+
+col1, col2 = st.columns([1, 2])
+
+with col1:
+    # Botón nativo de Streamlit estilo enlace
+    st.link_button("📲 Compartir por WhatsApp", link_wa, use_container_width=True)
+
+with col2:
+    # Opción alternativa para copiar enlace si no usan WhatsApp
+    if st.button("📋 Copiar enlace", use_container_width=True):
+        st.toast(f"Enlace para copiar: {URL_APP}", icon="ℹ️")
