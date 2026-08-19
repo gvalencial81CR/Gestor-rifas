@@ -515,13 +515,13 @@ nombre_sinpe = config_actual["sinpe_nombre"]
 st.title(titulo_rifa)
 st.caption(f"📅 **Fecha del Sorteo:** {fecha_formateada}")
 
-# ⚡ SEPARACIÓN DE NAVEGACIÓN PRINCIPAL EN PESTAÑAS
+# NAVEGACIÓN PRINCIPAL EN PESTAÑAS
 tab_comprar, tab_premio, tab_reglamento = st.tabs(
     ["🎟️ Comprar Números", "🎁 Premio Único", "📜 Reglamento"]
 )
 
 with tab_comprar:
-    # ⚡ INDICADOR DE DISPONIBILIDAD
+    # INDICADOR DE DISPONIBILIDAD
     mapa_numeros_actual = obtener_mapa_numeros_ocupados()
     disponibles_count = total_numeros_config - len(mapa_numeros_actual)
 
@@ -626,65 +626,42 @@ with tab_comprar:
             st.session_state.seleccionados_global = []
             st.rerun()
 
-    # --- VISTA 2: SELECCIÓN DE NÚMEROS ---
+    # --- VISTA 2: SELECCIÓN DE NÚMEROS (CUADRÍCULA CONTINUA 10x10) ---
     else:
-        st.subheader(f"Elige tus números (del 00 al {total_numeros_config - 1:02d})")
+        st.subheader("Selecciona tus números")
+        st.caption(
+            "✅ **Confirmado (Pagado)** | ❌ **Reservado (Pendiente)** | ⚪ **Disponible**"
+        )
         st.write("---")
 
         mapa_numeros = obtener_mapa_numeros_ocupados()
 
-        st.write("### 🔢 Selecciona tus números por decenas:")
-        st.caption(
-            "✅ **Confirmado (Pagado)** | ❌ **Reservado (Pendiente)** | ⚪"
-            " **Disponible**"
-        )
+        # Cuadrícula única de 10 columnas por fila (00 al 99)
+        columnas_por_fila = 10
+        total_nums = list(range(0, total_numeros_config))
 
-        rangos = []
-        bloques = []
-        for i in range(0, total_numeros_config, 10):
-            fin_bloque = min(i + 9, total_numeros_config - 1)
-            rangos.append(f"{i:02d} - {fin_bloque:02d}")
-            bloques.append((i, fin_bloque))
+        for row_start in range(0, len(total_nums), columnas_por_fila):
+            fila_nums = total_nums[row_start : row_start + columnas_por_fila]
+            cols = st.columns(columnas_por_fila)
 
-        tabs_decenas = st.tabs(rangos)
-
-        for idx, tab in enumerate(tabs_decenas):
-            with tab:
-                inicio, fin = bloques[idx]
-                numeros_bloque = list(range(inicio, fin + 1))
-
-                for row_start in range(0, len(numeros_bloque), 5):
-                    fila_nums = numeros_bloque[row_start : row_start + 5]
-                    cols = st.columns(len(fila_nums))
-
-                    for c_idx, num_val in enumerate(fila_nums):
-                        num_str = f"{num_val:02d}"
-                        with cols[c_idx]:
-                            if num_str in mapa_numeros:
-                                estatus = mapa_numeros[num_str]
-                                etiqueta_btn = (
-                                    f"✅ {num_str}"
-                                    if "Pagado" in str(estatus)
-                                    else f"❌ {num_str}"
-                                )
-                                st.button(etiqueta_btn, key=f"btn_{num_str}", disabled=True)
-                            else:
-                                if st.checkbox(num_str, key=f"num_{num_str}"):
-                                    if (
-                                        num_str
-                                        not in st.session_state.seleccionados_global
-                                    ):
-                                        st.session_state.seleccionados_global.append(
-                                            num_str
-                                        )
-                                else:
-                                    if (
-                                        num_str
-                                        in st.session_state.seleccionados_global
-                                    ):
-                                        st.session_state.seleccionados_global.remove(
-                                            num_str
-                                        )
+            for c_idx, num_val in enumerate(fila_nums):
+                num_str = f"{num_val:02d}"
+                with cols[c_idx]:
+                    if num_str in mapa_numeros:
+                        estatus = mapa_numeros[num_str]
+                        etiqueta_btn = (
+                            f"✅\n{num_str}"
+                            if "Pagado" in str(estatus)
+                            else f"❌\n{num_str}"
+                        )
+                        st.button(etiqueta_btn, key=f"btn_{num_str}", disabled=True)
+                    else:
+                        if st.checkbox(num_str, key=f"num_{num_str}"):
+                            if num_str not in st.session_state.seleccionados_global:
+                                st.session_state.seleccionados_global.append(num_str)
+                        else:
+                            if num_str in st.session_state.seleccionados_global:
+                                st.session_state.seleccionados_global.remove(num_str)
 
         numeros_seleccionados = sorted(
             st.session_state.seleccionados_global, key=lambda x: int(x)
@@ -813,7 +790,7 @@ with tab_reglamento:
     * **Valor del boleto:** ₡{precio_numero:,.0f} CRC cada número.
     * **Pago vía SINPE Móvil:** Al realizar la reserva, debes transferir el monto exacto al **{num_limpio}** a nombre de **{nombre_sinpe}**.
     * **Confirmación:** Envía el comprobante de pago vía WhatsApp para confirmar tu número.
-    * **Plazo máximo:** El pago lo debe de realizar máximo un dia antes del sorteo.
+    * **Plazo máximo:** Las reservas no pagadas en un plazo razonable podrán ser liberadas.
     """)
 
 # -------------------------------------------------------------
