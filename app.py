@@ -98,48 +98,59 @@ if "reserva_confirmada" not in st.session_state:
 if "seleccionados_global" not in st.session_state:
   st.session_state.seleccionados_global = []
 
-# Guardar valores por defecto en sesión si no existen
-if "cfg_titulo" not in st.session_state:
-  st.session_state.cfg_titulo = "🎟️ Gran Rifa Especial 🇨🇷"
-if "cfg_num_sinpe" not in st.session_state:
-  st.session_state.cfg_num_sinpe = "88888888"
-if "cfg_nombre_sinpe" not in st.session_state:
-  st.session_state.cfg_nombre_sinpe = "Juan Pérez"
-if "cfg_precio" not in st.session_state:
-  st.session_state.cfg_precio = 1000
+# Guardar valores por defecto en sesión solo la primera vez
+if "sinpe_numero" not in st.session_state:
+  st.session_state.sinpe_numero = "88888888"
+if "sinpe_nombre" not in st.session_state:
+  st.session_state.sinpe_nombre = "Juan Pérez"
+if "rifa_titulo" not in st.session_state:
+  st.session_state.rifa_titulo = "🎟️ Gran Rifa Especial 🇨🇷"
+if "rifa_precio" not in st.session_state:
+  st.session_state.rifa_precio = 1000
 
-# --- PANEL LATERAL ---
+# --- PANEL LATERAL CON FORMULARIO ---
 with st.sidebar:
   st.header("⚙️ Configuración de la Rifa")
 
-  input_titulo = st.text_input("Nombre de la Rifa:", st.session_state.cfg_titulo)
-  fecha_sorteo = st.date_input("Fecha del Sorteo:", value=datetime.today())
-  input_precio = st.number_input(
-      "Precio por número (₡ CRC):",
-      min_value=100,
-      value=int(st.session_state.cfg_precio),
-      step=100,
-  )
-
-  st.write("---")
-  st.header("📱 Datos de SINPE Móvil")
-  input_num_sinpe = st.text_input(
-      "Tu Número de SINPE Móvil:", st.session_state.cfg_num_sinpe
-  )
-  input_nombre_sinpe = st.text_input(
-      "Nombre Titular del SINPE:", st.session_state.cfg_nombre_sinpe
-  )
-
-  # Botón para guardar configuración
-  if st.button("💾 Guardar Configuración"):
-    st.session_state.cfg_titulo = input_titulo
-    st.session_state.cfg_precio = input_precio
-    st.session_state.cfg_num_sinpe = (
-        input_num_sinpe.replace("-", "").replace(" ", "").strip()
+  with st.form("form_configuracion"):
+    nuevo_titulo = st.text_input(
+        "Nombre de la Rifa:",
+        value=st.session_state.rifa_titulo,
+        key="input_titulo",
     )
-    st.session_state.cfg_nombre_sinpe = input_nombre_sinpe
-    st.success("¡Configuración guardada!")
-    st.rerun()
+    fecha_sorteo = st.date_input("Fecha del Sorteo:", value=datetime.today())
+    nuevo_precio = st.number_input(
+        "Precio por número (₡ CRC):",
+        min_value=100,
+        value=int(st.session_state.rifa_precio),
+        step=100,
+        key="input_precio",
+    )
+
+    st.write("---")
+    st.header("📱 Datos de SINPE Móvil")
+    nuevo_sinpe = st.text_input(
+        "Tu Número de SINPE Móvil:",
+        value=st.session_state.sinpe_numero,
+        key="input_sinpe_num",
+    )
+    nuevo_nombre_sinpe = st.text_input(
+        "Nombre Titular del SINPE:",
+        value=st.session_state.sinpe_nombre,
+        key="input_sinpe_nom",
+    )
+
+    btn_guardar = st.form_submit_button("💾 Guardar Configuración")
+
+    if btn_guardar:
+      st.session_state.rifa_titulo = nuevo_titulo
+      st.session_state.rifa_precio = nuevo_precio
+      st.session_state.sinpe_numero = (
+          nuevo_sinpe.replace("-", "").replace(" ", "").strip()
+      )
+      st.session_state.sinpe_nombre = nuevo_nombre_sinpe
+      st.success("¡Configuración guardada correctamente!")
+      st.rerun()
 
   st.write("---")
   st.write("### 📊 Estado de Ventas")
@@ -174,18 +185,12 @@ with st.sidebar:
     elif clave_admin != "":
       st.error("Contraseña incorrecta")
 
-# Formatear la fecha
+# Variables activas a nivel global en la app
 fecha_formateada = fecha_sorteo.strftime("%d/%m/%Y")
-
-# Usar los datos guardados en sesión
-titulo_rifa = st.session_state.cfg_titulo
-precio_numero = st.session_state.cfg_precio
-num_limpio = (
-    input_num_sinpe.replace("-", "").replace(" ", "").strip()
-    if input_num_sinpe
-    else st.session_state.cfg_num_sinpe
-)
-nombre_sinpe = st.session_state.cfg_nombre_sinpe
+titulo_rifa = st.session_state.rifa_titulo
+precio_numero = st.session_state.rifa_precio
+num_limpio = st.session_state.sinpe_numero
+nombre_sinpe = st.session_state.sinpe_nombre
 
 # --- VISTA PRINCIPAL ---
 st.title(titulo_rifa)
