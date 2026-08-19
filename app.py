@@ -231,7 +231,7 @@ else:
                             if num_str in st.session_state.seleccionados_global:
                                 st.session_state.seleccionados_global.remove(num_str)
 
-            # Fila 2: siguientes 5 números
+            # Fila 2: siguientes 5 números (CORREGIDA LA SINTAXIS AQUÍ)
             cols_fila2 = st.columns(5)
             for offset in range(5, 10):
                 i = inicio + offset
@@ -240,7 +240,7 @@ else:
                     if num_str in numeros_bloqueados:
                         st.button(f"❌ {num_str}", key=f"btn_{num_str}", disabled=True)
                     else:
-                        if num_str in st.checkbox(num_str, key=f"num_{num_str}"):
+                        if st.checkbox(num_str, key=f"num_{num_str}"):
                             if num_str not in st.session_state.seleccionados_global:
                                 st.session_state.seleccionados_global.append(num_str)
                         else:
