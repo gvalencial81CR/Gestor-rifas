@@ -79,10 +79,9 @@ with st.sidebar:
     st.write("---")
     # --- PESTAÑA DE ADMINISTRACIÓN EN LA BARRA LATERAL ---
     with st.expander("🔑 Admin: Gestionar y Liberar Números"):
-        # Contraseña sencilla de administración
         clave_admin = st.text_input("Contraseña Admin:", type="password")
         
-        if clave_admin == "1234":  # Puedes cambiar esta clave por la que prefieras
+        if clave_admin == "1234":  # Cambia esta clave si lo deseas
             st.success("Acceso concedido")
             
             df_reservas = obtener_todas_las_reservas()
@@ -91,13 +90,12 @@ with st.sidebar:
                 st.write("### 📋 Reservas Actuales")
                 st.dataframe(df_reservas, use_container_width=True)
                 
-                # Selección de número a liberar
                 lista_numeros_reservados = df_reservas['Número'].tolist()
                 num_a_liberar = st.selectbox("Selecciona un número a LIBERAR:", lista_numeros_reservados)
                 
                 if st.button("🔓 Liberar Número"):
                     liberar_numero(num_a_liberar)
-                    st.success(f"¡El número {num_a_liberar} ha sido liberado y está disponible nuevamente!")
+                    st.success(f"¡El número {num_a_liberar} ha sido liberado!")
                     st.rerun()
             else:
                 st.info("No hay números reservados por el momento.")
@@ -170,6 +168,7 @@ if numeros_seleccionados:
                 st.write("---")
                 st.subheader("📲 Elige cómo pagar / enviar comprobante:")
 
+                # Lista de bancos de Costa Rica para SMS
                 bancos_sms = {
                     "Banco Nacional (BNCR)": "2627",
                     "Banco de Costa Rica (BCR)": "4066",
@@ -177,13 +176,15 @@ if numeros_seleccionados:
                     "Banco Promerica": "62232450"
                 }
 
-                banco_seleccionado = st.selectbox("Si pagas por SMS, selecciona tu banco:", list(bancos_sms.keys()))
+                banco_seleccionado = st.selectbox("Si pagas por SMS (mensajería de texto), selecciona tu banco:", list(bancos_sms.keys()))
                 numero_banco = bancos_sms[banco_seleccionado]
                 
+                # Texto para SMS
                 texto_sms = f"PASE {int(total)} {num_limpio} Rifa"
                 texto_sms_codificado = urllib.parse.quote(texto_sms)
                 url_sms = f"sms:{numero_banco}?body={texto_sms_codificado}"
 
+                # Texto para WhatsApp
                 nums_texto = ", ".join(exitosos)
                 mensaje_wa = (
                     f"Hola! Acabo de reservar en la *{titulo_rifa}*:\n\n"
