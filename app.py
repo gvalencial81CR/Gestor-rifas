@@ -581,12 +581,13 @@ with tab_comprar:
         st.markdown(
             f"""
         <div class="ticket-box">
-            <h3>🎟️ BOLETO DIGITAL DE RESERVA</h3>
+            <h3>🎟️ NÚMERO(S) DIGITAL DE RESERVA</h3>
             <p><b>Rifa:</b> {st.session_state.titulo_reserva}</p>
             <p><b>Comprador:</b> {st.session_state.nombre_reserva}</p>
             <p><b>Número(s):</b> {', '.join(st.session_state.numeros_reserva)}</p>
             <p><b>Total a Pagar:</b> ₡{st.session_state.total_reserva:,.0f} CRC</p>
             <p><b>Fecha de Sorteo:</b> {st.session_state.fecha_reserva}</p>
+            <h4 style="margin-top: 15px; color: #0056b3;">🍀 ¡Buena Suerte! 🍀</h4>
         </div>
         """,
             unsafe_allow_html=True,
