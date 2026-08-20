@@ -14,23 +14,48 @@ st.set_page_config(
 # Configura aquí tu dirección web desplegada
 URL_APP = "https://tu-app-de-rifa.streamlit.app"
 
-# Estilos CSS personalizados
+# Estilos CSS personalizados (Incluye regla forzada para grid de 5 columnas en móviles)
 st.markdown(
     """
     <style>
-    /* Estilo para los botones de selección de número */
+    /* FORZAR CONTENEDOR EN HORIZONTAL PARA MÓVILES */
+    div[data-testid="stHorizontalBlock"] {
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        gap: 4px !important;
+    }
+
+    div[data-testid="column"] {
+        flex: 1 1 0 !important;
+        min-width: 0 !important;
+    }
+
+    /* Estilo para los botones/cuadros de selección */
     .stButton>button {
         width: 100% !important;
         height: 2.8em !important;
         font-weight: bold !important;
-        border-radius: 8px !important;
+        border-radius: 6px !important;
         padding: 0px !important;
+        font-size: 13px !important;
     }
 
-    /* Estilos de casillas de verificación */
+    /* Estilos de casillas de verificación en tarjetas compactas */
     .stCheckbox {
         text-align: center;
         margin: 0px auto;
+    }
+    
+    .stCheckbox > label {
+        padding-left: 0px !important;
+    }
+
+    /* Reducir márgenes laterales en pantallas pequeñas */
+    .block-container {
+        padding-left: 0.8rem !important;
+        padding-right: 0.8rem !important;
+        padding-top: 1.5rem !important;
     }
 
     /* Cajas y tarjetas */
@@ -631,7 +656,7 @@ with tab_comprar:
             st.session_state.seleccionados_global = []
             st.rerun()
 
-    # VISTA 2: TABLERO EN MATRIZ DE 5 COLUMNAS (ADAPTATIVO Y PERFECTO EN MÓVIL)
+    # VISTA 2: TABLERO FORZADO EN MATRIZ DE 5 COLUMNAS HORIZONTALES
     else:
         st.subheader("Selecciona tus números")
         st.caption("✅ **Pagado** | ❌ **Reservado** | ⚪ **Disponible**")
