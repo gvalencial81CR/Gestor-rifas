@@ -595,11 +595,14 @@ with tab_comprar:
         st.write("---")
         st.subheader("📲 Elige tu método para pagar / enviar comprobante:")
 
+        # LISTA DE BANCOS CON SUS NÚMEROS DE SMS CORRESPONDIENTES (UNIFICADO BCR EN 4066)
         bancos_sms = {
-            "Banco Nacional (BNCR)": "2627",
-            "Banco de Costa Rica (BCR)": "4066",
-            "BAC Credomatic": "70701222",
-            "Banco Promerica": "62232450",
+            "Banco Nacional (BNCR) - 2627": "2627",
+            "BAC Credomatic - 70701222": "70701222",
+            "Banco de Costa Rica (BCR) - 4066": "4066",
+            "Banco Promerica - 62232450": "62232450",
+            "Banco Davivienda - 70707474": "70707474",
+            "Banco LAFISE - 9091": "9091"
         }
 
         banco_seleccionado = st.selectbox(
