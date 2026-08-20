@@ -15,7 +15,7 @@ st.set_page_config(
 )
 
 # Configura aquí tu dirección web desplegada
-URL_APP = "https://tu-app-de-rifa.streamlit.app"
+URL_APP = "https://gestor-rifas-ww94zdzkemq5cwjpqwc4ga.streamlit.app/"
 
 # Estilos CSS personalizados
 st.markdown(
