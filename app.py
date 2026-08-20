@@ -14,44 +14,23 @@ st.set_page_config(
 # Configura aquí tu dirección web desplegada
 URL_APP = "https://tu-app-de-rifa.streamlit.app"
 
-# Estilos CSS personalizados (FORZAR CUADRÍCULA 10x10 EN CELULARES)
+# Estilos CSS personalizados
 st.markdown(
     """
     <style>
-    /* Forzar a Streamlit a no apilar columnas en pantallas pequeñas */
-    [data-testid="column"] {
-        width: 10% !important;
-        flex: 1 1 10% !important;
-        min-width: 10% !important;
-        padding: 1px !important;
-    }
-    
-    /* Contenedor de filas para mantener distribución horizontal */
-    [data-testid="stHorizontalBlock"] {
-        flex-wrap: nowrap !important;
-        gap: 2px !important;
-    }
-
-    /* Estilo responsivo para botones de números */
+    /* Estilo para los botones de selección de número */
     .stButton>button {
         width: 100% !important;
         height: 2.8em !important;
         font-weight: bold !important;
-        font-size: 11px !important;
-        border-radius: 6px !important;
+        border-radius: 8px !important;
         padding: 0px !important;
-        margin: 0px !important;
     }
 
-    /* Estilos de casillas de verificación para selección de números */
+    /* Estilos de casillas de verificación */
     .stCheckbox {
         text-align: center;
         margin: 0px auto;
-    }
-    .stCheckbox > label {
-        font-size: 12px !important;
-        font-weight: bold;
-        padding-left: 20px !important;
     }
 
     /* Cajas y tarjetas */
@@ -109,7 +88,7 @@ def conectar_db():
         )
     """)
 
-    # Tabla de Premios (con imágenes guardadas en base64)
+    # Tabla de Premios
     c.execute("""
         CREATE TABLE IF NOT EXISTS premios (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -176,7 +155,6 @@ def procesar_imagen_a_base64(uploaded_file):
 def agregar_premio(lugar, nombre, descripcion, imagen_data):
     conn = conectar_db()
     c = conn.cursor()
-    # Borra todos los premios anteriores para asegurar que SOLO HAYA 1 PREMIO
     c.execute("DELETE FROM premios")
     c.execute(
         "INSERT INTO premios (lugar, nombre, descripcion, imagen_data) VALUES (?, ?, ?, ?)",
@@ -295,9 +273,7 @@ except (KeyError, ValueError):
 with st.sidebar:
     st.title("⚙️ Panel de Control")
 
-    # -------------------------------------------------------------
     # 🔑 MODO ADMINISTRADOR
-    # -------------------------------------------------------------
     st.subheader("🔑 Modo Administrador")
     clave_admin = st.text_input(
         "Contraseña Admin:", type="password", key="pass_admin"
@@ -422,7 +398,7 @@ with st.sidebar:
         else:
             st.info("No hay reservas registradas por el momento.")
 
-        # --- GESTIÓN DE PREMIO ÚNICO ---
+        # GESTIÓN DE PREMIO ÚNICO
         st.write("---")
         st.write("### 🎁 Configurar Premio Único")
         with st.form("form_nuevo_premio", clear_on_submit=True):
@@ -458,7 +434,7 @@ with st.sidebar:
                         eliminar_premio(p_id)
                         st.rerun()
 
-        # --- ZONA PELIGROSA: REINICIAR RIFA ---
+        # REINICIAR RIFA
         st.write("---")
         st.write("#### ⚠️ Reiniciar / Borrar Rifa")
         confirmar_borrado = st.checkbox("Confirmo borrar TODAS las reservas", key="check_borrar")
@@ -478,9 +454,7 @@ with st.sidebar:
     elif clave_admin != "":
         st.error("Contraseña incorrecta")
 
-    # -------------------------------------------------------------
     # CONFIGURACIÓN GENERAL DE LA RIFA
-    # -------------------------------------------------------------
     with st.expander("⚙️ Configuración de la Rifa (SINPE / Nombre)"):
         with st.form("form_configuracion"):
             nuevo_titulo = st.text_input(
@@ -561,7 +535,7 @@ with tab_comprar:
     else:
         st.info(f"🎟️ **Números disponibles:** {disponibles_count} de {total_numeros_config}")
 
-    # --- VISTA 1: SI YA SE CONFIRMÓ LA RESERVA ---
+    # VISTA 1: SI YA SE CONFIRMÓ LA RESERVA
     if st.session_state.reserva_confirmada:
         st.balloons()
 
@@ -657,17 +631,15 @@ with tab_comprar:
             st.session_state.seleccionados_global = []
             st.rerun()
 
-    # --- VISTA 2: SELECCIÓN DE NÚMEROS (FORZADO 10x10 EN MÓVIL Y DESKTOP) ---
+    # VISTA 2: TABLERO EN MATRIZ DE 5 COLUMNAS (ADAPTATIVO Y PERFECTO EN MÓVIL)
     else:
         st.subheader("Selecciona tus números")
-        st.caption(
-            "✅ **Confirmado (Pagado)** | ❌ **Reservado (Pendiente)** | ⚪ **Disponible**"
-        )
+        st.caption("✅ **Pagado** | ❌ **Reservado** | ⚪ **Disponible**")
         st.write("---")
 
         mapa_numeros = obtener_mapa_numeros_ocupados()
-
-        columnas_por_fila = 10
+        
+        columnas_por_fila = 5
         total_nums = list(range(0, total_numeros_config))
 
         for row_start in range(0, len(total_nums), columnas_por_fila):
@@ -679,14 +651,11 @@ with tab_comprar:
                 with cols[c_idx]:
                     if num_str in mapa_numeros:
                         estatus = mapa_numeros[num_str]
-                        etiqueta_btn = (
-                            f"✅\n{num_str}"
-                            if "Pagado" in str(estatus)
-                            else f"❌\n{num_str}"
-                        )
+                        etiqueta_btn = f"✅{num_str}" if "Pagado" in str(estatus) else f"❌{num_str}"
                         st.button(etiqueta_btn, key=f"btn_{num_str}", disabled=True)
                     else:
-                        if st.checkbox(num_str, key=f"num_{num_str}"):
+                        esta_seleccionado = num_str in st.session_state.seleccionados_global
+                        if st.checkbox(num_str, value=esta_seleccionado, key=f"num_{num_str}"):
                             if num_str not in st.session_state.seleccionados_global:
                                 st.session_state.seleccionados_global.append(num_str)
                         else:
@@ -782,7 +751,6 @@ with tab_comprar:
             st.warning("Selecciona al menos un número disponible para continuar.")
 
 with tab_premio:
-    # 🎁 VISTA PÚBLICA DEL PREMIO ÚNICO
     lista_premios = obtener_premios()
     if lista_premios:
         p = lista_premios[0]
@@ -815,7 +783,6 @@ with tab_premio:
         st.info("Aún no se ha detallado el premio para esta rifa.")
 
 with tab_reglamento:
-    # 📜 REGLAMENTO / TÉRMINOS
     st.markdown(f"""
     * **Valor del boleto:** ₡{precio_numero:,.0f} CRC cada número.
     * **Pago vía SINPE Móvil:** Al realizar la reserva, debes transferir el monto exacto al **{num_limpio}** a nombre de **{nombre_sinpe}**.
@@ -823,9 +790,7 @@ with tab_reglamento:
     * **Plazo máximo:** Las reservas no pagadas en un plazo razonable podrán ser liberadas.
     """)
 
-# -------------------------------------------------------------
-# 🔗 PIE DE PÁGINA
-# -------------------------------------------------------------
+# --- PIE DE PÁGINA ---
 st.markdown("---")
 st.caption("🔗 **Compartir esta rifa:**")
 
