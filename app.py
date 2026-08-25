@@ -1,21 +1,158 @@
-import sqlite3
-import urllib.parse
-from datetime import datetime, date
-import pandas as pd
-import streamlit as st
-import streamlit.components.v1 as components
-import re
 import base64
 import io
+import re
+import sqlite3
+import urllib.parse
+from datetime import date, datetime
+
+import pandas as pd
 from PIL import Image, ImageDraw, ImageFont
+import streamlit as st
+import streamlit.components.v1 as components
 
 # Configuración de la página
 st.set_page_config(
     page_title="Gestor de Rifas CR 🇨🇷", layout="centered", page_icon="🎟️"
 )
 
-# Configura aquí tu dirección web desplegada
-URL_APP = "https://gestor-rifas-ww94zdzkemq5cwjpqwc4ga.streamlit.app/"
+# Dirección web pública desplegada (URL para clientes)
+URL_APP = "https://rifa.streamlit.app"
+
+# --- INICIALIZACIÓN DE ESTADO PARA IDIOMA ---
+if "idioma" not in st.session_state:
+    st.session_state.idioma = "Español"
+
+# --- DICCIONARIO DE TRADUCCIONES ---
+TEXTOS = {
+    "Español": {
+        "tab_comprar": "🎟️ Comprar Números",
+        "tab_premio": "🎁 Premio Único",
+        "tab_reglamento": "📜 Reglamento",
+        "tab_idioma": "🌐 Idioma",
+        "fecha_sorteo": "📅 Fecha del Sorteo:",
+        "disp_quedan": "🔥 ¡Atención! Solo quedan {} números disponibles.",
+        "disp_total": "🎟️ Números disponibles: {} de {}",
+        "reserva_exito_1": "🎉 ¡Número **{}** reservado exitosamente!",
+        "reserva_exito_varios": "🎉 ¡Números **{}** reservados exitosamente!",
+        "ticket_titulo": "🎟️ NÚMERO(S) DIGITAL DE RESERVA",
+        "ticket_rifa": "Rifa:",
+        "ticket_comprador": "Comprador:",
+        "ticket_numeros": "Número(s):",
+        "ticket_total": "Total a Pagar:",
+        "ticket_fecha": "Fecha de Sorteo:",
+        "ticket_suerte": "🍀 ¡Buena Suerte! 🍀",
+        "metodos_pago": (
+            "📲 Elige tu método para pagar / enviar comprobante:"
+        ),
+        "selecciona_banco": "Si pagas por SMS, selecciona tu banco:",
+        "btn_pagar_sms": "💬 Pagar vía SMS ({})",
+        "btn_confirmar_wa": "🟢 Confirmar por WhatsApp",
+        "btn_otra_reserva": "🔄 Hacer otra reserva",
+        "sel_numeros": "Selecciona tus números",
+        "leyenda": "✅ Pagado | ❌ Reservado | ⚪ Disponible",
+        "num_elegido": "Número elegido",
+        "nums_elegidos": "Números elegidos",
+        "total_pagar": "Total a pagar:",
+        "datos_sinpe": "💳 Datos para pagar por SINPE Móvil",
+        "titular": "Titular:",
+        "copiar_sinpe": "Copiar número SINPE",
+        "copiar_monto": "Copiar monto exacto",
+        "datos_reserva": "📋 Datos para la Reserva",
+        "tu_nombre": "Tu Nombre Completo:",
+        "tu_telefono": "Tu Número de Teléfono (8 dígitos):",
+        "btn_confirmar": "🔒 Confirmar Reserva",
+        "err_nombre": "⚠️ Por favor ingresa un nombre válido.",
+        "err_telefono": "⚠️ El teléfono debe tener 8 dígitos.",
+        "nums_ocupados": "Números ocupados:",
+        "sel_al_menos_uno": (
+            "Selecciona al menos un número disponible para continuar."
+        ),
+        "premio_unico": "🎁 Premio Único",
+        "no_premio": "Aún no se ha detallado el premio para esta rifa.",
+        "regla_1": "Valor del boleto: ₡{:,.0f} CRC cada número.",
+        "regla_2": (
+            "Pago vía SINPE Móvil: Al realizar la reserva, debes transferir"
+            " el monto exacto al {} a nombre de {}."
+        ),
+        "regla_3": (
+            "Confirmación: Envía el comprobante de pago vía WhatsApp para"
+            " confirmar tu número."
+        ),
+        "regla_4": (
+            "Plazo máximo: Las reservas no pagadas en un plazo razonable"
+            " podrán ser liberadas."
+        ),
+        "compartir": "🔗 Compartir esta rifa:",
+        "invitacion_wa": "¡Hola! Te invito a participar en la rifa 🎟️ '{}': {}",
+        "tit_idioma": "🌐 Seleccionar Idioma / Select Language",
+        "sub_idioma": (
+            "Elige tu idioma de preferencia para navegar en la plataforma:"
+        ),
+        "msg_idioma_cambiado": "Idioma cambiado a Español correctamente.",
+    },
+    "English": {
+        "tab_comprar": "🎟️ Buy Tickets",
+        "tab_premio": "🎁 Unique Prize",
+        "tab_reglamento": "📜 Rules",
+        "tab_idioma": "🌐 Language",
+        "fecha_sorteo": "📅 Draw Date:",
+        "disp_quedan": "🔥 Attention! Only {} numbers left available.",
+        "disp_total": "🎟️ Available numbers: {} of {}",
+        "reserva_exito_1": "🎉 Ticket **{}** reserved successfully!",
+        "reserva_exito_varios": "🎉 Tickets **{}** reserved successfully!",
+        "ticket_titulo": "🎟️ DIGITAL RESERVATION TICKET",
+        "ticket_rifa": "Raffle:",
+        "ticket_comprador": "Buyer:",
+        "ticket_numeros": "Ticket(s):",
+        "ticket_total": "Total Amount:",
+        "ticket_fecha": "Draw Date:",
+        "ticket_suerte": "🍀 Good Luck! 🍀",
+        "metodos_pago": "📲 Choose your payment / confirmation method:",
+        "selecciona_banco": "If paying via SMS, select your bank:",
+        "btn_pagar_sms": "💬 Pay via SMS ({})",
+        "btn_confirmar_wa": "🟢 Confirm via WhatsApp",
+        "btn_otra_reserva": "🔄 Make another reservation",
+        "sel_numeros": "Select your numbers",
+        "leyenda": "✅ Paid | ❌ Reserved | ⚪ Available",
+        "num_elegido": "Selected ticket",
+        "nums_elegidos": "Selected tickets",
+        "total_pagar": "Total amount:",
+        "datos_sinpe": "💳 SINPE Móvil Payment Details",
+        "titular": "Account Owner:",
+        "copiar_sinpe": "Copy SINPE number",
+        "copiar_monto": "Copy exact amount",
+        "datos_reserva": "📋 Reservation Details",
+        "tu_nombre": "Your Full Name:",
+        "tu_telefono": "Your Phone Number (8 digits):",
+        "btn_confirmar": "🔒 Confirm Reservation",
+        "err_nombre": "⚠️ Please enter a valid name.",
+        "err_telefono": "⚠️ Phone number must be 8 digits.",
+        "nums_ocupados": "Occupied numbers:",
+        "sel_al_menos_uno": "Select at least one available number to continue.",
+        "premio_unico": "🎁 Unique Prize",
+        "no_premio": "No prize details available yet for this raffle.",
+        "regla_1": "Ticket price: ₡{:,.0f} CRC each ticket.",
+        "regla_2": (
+            "SINPE Móvil Payment: Upon reserving, transfer the exact amount"
+            " to {} registered under {}."
+        ),
+        "regla_3": (
+            "Confirmation: Send payment receipt via WhatsApp to confirm your"
+            " ticket."
+        ),
+        "regla_4": (
+            "Time limit: Unpaid reservations within a reasonable period may"
+            " be released."
+        ),
+        "compartir": "🔗 Share this raffle:",
+        "invitacion_wa": "Hello! I invite you to join the raffle 🎟️ '{}': {}",
+        "tit_idioma": "🌐 Select Language / Seleccionar Idioma",
+        "sub_idioma": "Choose your preferred language for navigation:",
+        "msg_idioma_cambiado": "Language successfully changed to English.",
+    },
+}
+
+t = TEXTOS[st.session_state.idioma]
 
 # Estilos CSS personalizados
 st.markdown(
@@ -101,17 +238,17 @@ def renderizar_contador_regresivo(fecha_sorteo_str):
         margin-bottom: 20px;
     ">
         <div style="font-size: 13px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; opacity: 0.9;">
-            ⏳ Tiempo restante para el sorteo ⏳
+            ⏳ Tiempo restante para el sorteo / Time remaining ⏳
         </div>
         <div id="countdown" style="display: flex; justify-content: center; gap: 10px; align-items: center;">
             <div style="background: rgba(255, 255, 255, 0.15); backdrop-filter: blur(5px); border-radius: 8px; padding: 8px 12px; min-width: 60px;">
                 <span id="days" style="font-size: 22px; font-weight: bold; display: block; line-height: 1;">00</span>
-                <span style="font-size: 10px; opacity: 0.8; text-transform: uppercase;">Días</span>
+                <span style="font-size: 10px; opacity: 0.8; text-transform: uppercase;">Días/Days</span>
             </div>
             <span style="font-size: 20px; font-weight: bold;">:</span>
             <div style="background: rgba(255, 255, 255, 0.15); backdrop-filter: blur(5px); border-radius: 8px; padding: 8px 12px; min-width: 60px;">
                 <span id="hours" style="font-size: 22px; font-weight: bold; display: block; line-height: 1;">00</span>
-                <span style="font-size: 10px; opacity: 0.8; text-transform: uppercase;">Horas</span>
+                <span style="font-size: 10px; opacity: 0.8; text-transform: uppercase;">Hrs</span>
             </div>
             <span style="font-size: 20px; font-weight: bold;">:</span>
             <div style="background: rgba(255, 255, 255, 0.15); backdrop-filter: blur(5px); border-radius: 8px; padding: 8px 12px; min-width: 60px;">
@@ -121,11 +258,11 @@ def renderizar_contador_regresivo(fecha_sorteo_str):
             <span style="font-size: 20px; font-weight: bold;">:</span>
             <div style="background: rgba(255, 255, 255, 0.15); backdrop-filter: blur(5px); border-radius: 8px; padding: 8px 12px; min-width: 60px;">
                 <span id="seconds" style="font-size: 22px; font-weight: bold; display: block; line-height: 1;">00</span>
-                <span style="font-size: 10px; opacity: 0.8; text-transform: uppercase;">Seg</span>
+                <span style="font-size: 10px; opacity: 0.8; text-transform: uppercase;">Sec</span>
             </div>
         </div>
         <div id="expired-msg" style="display: none; font-size: 16px; font-weight: bold; color: #ff6b6b; margin-top: 5px;">
-            🎉 ¡El día del sorteo ha llegado! 🎉
+            🎉 ¡El día del sorteo ha llegado! / Draw day is here! 🎉
         </div>
     </div>
 
@@ -163,14 +300,11 @@ def generar_imagen_comprobante_admin(
     titulo, comprador, numeros, total, fecha, estado_pago
 ):
     ancho, alto = 650, 360
-    # Fondo azul claro pastel
     img = Image.new("RGB", (ancho, alto), color="#edf5ff")
     draw = ImageDraw.Draw(img)
 
-    # Borde marco azul
     draw.rectangle([12, 12, ancho - 12, alto - 12], outline="#0056b3", width=2)
 
-    # Textos principales centrados
     draw.text(
         (ancho // 2, 35),
         "🎟️ NÚMERO(S) DIGITAL DE RESERVA",
@@ -203,7 +337,6 @@ def generar_imagen_comprobante_admin(
         anchor="mm",
     )
 
-    # Pie de página / Mensaje final
     draw.text(
         (ancho // 2, 305), "🍀 ¡Buena Suerte! 🍀", fill="#0056b3", anchor="mm"
     )
@@ -536,7 +669,6 @@ with st.sidebar:
                 st.success(f"¡Número {num_a_pagar} actualizado a {nuevo_est}!")
                 st.rerun()
 
-            # SECCIÓN PARA GENERAR IMAGEN ENVIABLE POR WHATSAPP COMO ADMIN
             st.write("---")
             st.write("#### 🖼️ Generar Comprobante en Imagen")
             num_para_foto = st.selectbox(
@@ -553,7 +685,6 @@ with st.sidebar:
                 tel_c = fila_reserva["Teléfono"]
                 est_c = fila_reserva["Estatus Pago"]
 
-                # Agrupar todos los números que pertenecen al mismo comprador
                 todos_nums_comprador = df_reservas[
                     df_reservas["Comprador"] == nom_c
                 ]["Número"].tolist()
@@ -585,7 +716,6 @@ with st.sidebar:
                     use_container_width=True,
                 )
 
-                # Link para abrir chat directamente con el cliente
                 msg_admin = (
                     f"Hola {nom_c}, te adjunto la confirmación de tus número(s)"
                     f" {nums_str} para la {titulo_rifa}. Estado: {est_c}."
@@ -618,7 +748,6 @@ with st.sidebar:
         else:
             st.info("No hay reservas registradas por el momento.")
 
-        # GESTIÓN DE PREMIO ÚNICO
         st.write("---")
         st.write("### 🎁 Configurar Premio Único")
         with st.form("form_nuevo_premio", clear_on_submit=True):
@@ -668,7 +797,6 @@ with st.sidebar:
                         eliminar_premio(p_id)
                         st.rerun()
 
-        # REINICIAR RIFA
         st.write("---")
         st.write("#### ⚠️ Reiniciar / Borrar Rifa")
         confirmar_borrado = st.checkbox(
@@ -688,7 +816,6 @@ with st.sidebar:
     elif clave_admin != "":
         st.error("Contraseña incorrecta")
 
-    # CONFIGURACIÓN GENERAL
     with st.expander("⚙️ Configuración de la Rifa (SINPE / Nombre)"):
         with st.form("form_configuracion"):
             nuevo_titulo = st.text_input(
@@ -747,14 +874,18 @@ with st.sidebar:
 
 # --- VISTA PRINCIPAL ---
 st.title(titulo_rifa)
-st.caption(f"📅 **Fecha del Sorteo:** {fecha_formateada}")
+st.caption(f"{t['fecha_sorteo']} {fecha_formateada}")
 
 # --- COMPONENTE VISUAL: CONTADOR REGRESIVO ---
 renderizar_contador_regresivo(config_actual["rifa_fecha_sorteo"])
 
-tab_comprar, tab_premio, tab_reglamento = st.tabs(
-    ["🎟️ Comprar Números", "🎁 Premio Único", "📜 Reglamento"]
-)
+# --- PESTAÑAS PRINCIPALES (INCLUYENDO PESTAÑA DE IDIOMA) ---
+tab_comprar, tab_premio, tab_reglamento, tab_idioma = st.tabs([
+    t["tab_comprar"],
+    t["tab_premio"],
+    t["tab_reglamento"],
+    t["tab_idioma"],
+])
 
 with tab_comprar:
     mapa_numeros_actual = obtener_mapa_numeros_ocupados()
@@ -764,30 +895,22 @@ with tab_comprar:
         disponibles_count <= (total_numeros_config * 0.2)
         and disponibles_count > 0
     ):
-        st.warning(
-            "🔥 **¡Atención! Solo quedan"
-            f" {disponibles_count} números disponibles.**"
-        )
+        st.warning(t["disp_quedan"].format(disponibles_count))
     else:
-        st.info(
-            "🎟️ **Números disponibles:**"
-            f" {disponibles_count} de {total_numeros_config}"
-        )
+        st.info(t["disp_total"].format(disponibles_count, total_numeros_config))
 
     if st.session_state.reserva_confirmada:
         st.balloons()
 
         cant_reserva = len(st.session_state.numeros_reserva)
         if cant_reserva == 1:
-            msg_exito = (
-                "🎉 ¡Número"
-                f" **{st.session_state.numeros_reserva[0]}** reservado"
-                " exitosamente!"
+            msg_exito = t["reserva_exito_1"].format(
+                st.session_state.numeros_reserva[0]
             )
             txt_nums_wa = f"Número:* {st.session_state.numeros_reserva[0]}"
         else:
             nums_texto = ", ".join(st.session_state.numeros_reserva)
-            msg_exito = f"🎉 ¡Números **{nums_texto}** reservados exitosamente!"
+            msg_exito = t["reserva_exito_varios"].format(nums_texto)
             txt_nums_wa = f"Números:* {nums_texto}"
 
         st.success(msg_exito)
@@ -795,20 +918,20 @@ with tab_comprar:
         st.markdown(
             f"""
         <div class="ticket-box">
-            <h3>🎟️ NÚMERO(S) DIGITAL DE RESERVA</h3>
-            <p><b>Rifa:</b> {st.session_state.titulo_reserva}</p>
-            <p><b>Comprador:</b> {st.session_state.nombre_reserva}</p>
-            <p><b>Número(s):</b> {', '.join(st.session_state.numeros_reserva)}</p>
-            <p><b>Total a Pagar:</b> ₡{st.session_state.total_reserva:,.0f} CRC</p>
-            <p><b>Fecha de Sorteo:</b> {st.session_state.fecha_reserva}</p>
-            <h4 style="margin-top: 15px; color: #0056b3;">🍀 ¡Buena Suerte! 🍀</h4>
+            <h3>{t['ticket_titulo']}</h3>
+            <p><b>{t['ticket_rifa']}</b> {st.session_state.titulo_reserva}</p>
+            <p><b>{t['ticket_comprador']}</b> {st.session_state.nombre_reserva}</p>
+            <p><b>{t['ticket_numeros']}</b> {', '.join(st.session_state.numeros_reserva)}</p>
+            <p><b>{t['ticket_total']}</b> ₡{st.session_state.total_reserva:,.0f} CRC</p>
+            <p><b>{t['ticket_fecha']}</b> {st.session_state.fecha_reserva}</p>
+            <h4 style="margin-top: 15px; color: #0056b3;">{t['ticket_suerte']}</h4>
         </div>
         """,
             unsafe_allow_html=True,
         )
 
         st.write("---")
-        st.subheader("📲 Elige tu método para pagar / enviar comprobante:")
+        st.subheader(t["metodos_pago"])
 
         bancos_sms = {
             "Banco Nacional (BNCR) - 2627": "2627",
@@ -820,7 +943,7 @@ with tab_comprar:
         }
 
         banco_seleccionado = st.selectbox(
-            "Si pagas por SMS, selecciona tu banco:", list(bancos_sms.keys())
+            t["selecciona_banco"], list(bancos_sms.keys())
         )
         numero_banco = bancos_sms[banco_seleccionado]
 
@@ -853,7 +976,7 @@ with tab_comprar:
                 f"""
                 <a href="{url_sms}">
                     <button style="background-color: #0056b3; color: white; border: none; padding: 14px 15px; font-size: 15px; font-weight: bold; border-radius: 8px; cursor: pointer; width: 100%; margin-bottom: 10px;">
-                        💬 Pagar vía SMS ({numero_banco})
+                        {t['btn_pagar_sms'].format(numero_banco)}
                     </button>
                 </a>
                 """,
@@ -865,7 +988,7 @@ with tab_comprar:
                 f"""
                 <a href="{url_whatsapp}" target="_blank">
                     <button style="background-color: #25D366; color: white; border: none; padding: 14px 15px; font-size: 15px; font-weight: bold; border-radius: 8px; cursor: pointer; width: 100%;">
-                        🟢 Confirmar por WhatsApp
+                        {t['btn_confirmar_wa']}
                     </button>
                 </a>
                 """,
@@ -873,14 +996,14 @@ with tab_comprar:
             )
 
         st.write("---")
-        if st.button("🔄 Hacer otra reserva"):
+        if st.button(t["btn_otra_reserva"]):
             st.session_state.reserva_confirmada = False
             st.session_state.seleccionados_global = []
             st.rerun()
 
     else:
-        st.subheader("Selecciona tus números")
-        st.caption("✅ **Pagado** | ❌ **Reservado** | ⚪ **Disponible**")
+        st.subheader(t["sel_numeros"])
+        st.caption(t["leyenda"])
         st.write("---")
 
         mapa_numeros = obtener_mapa_numeros_ocupados()
@@ -941,41 +1064,39 @@ with tab_comprar:
             cant_seleccionados = len(numeros_seleccionados)
 
             etiqueta_elegidos = (
-                "Número elegido"
+                t["num_elegido"]
                 if cant_seleccionados == 1
-                else "Números elegidos"
+                else t["nums_elegidos"]
             )
 
             st.success(
                 f"**{etiqueta_elegidos} ({cant_seleccionados}):**"
                 f" {', '.join(numeros_seleccionados)}"
             )
-            st.info(f"**Total a pagar:** ₡{total:,.0f} CRC")
+            st.info(f"**{t['total_pagar']}** ₡{total:,.0f} CRC")
 
-            st.write("### 💳 Datos para pagar por SINPE Móvil")
-            st.write(f"**Titular:** {nombre_sinpe}")
+            st.write(f"### {t['datos_sinpe']}")
+            st.write(f"**{t['titular']}** {nombre_sinpe}")
 
             col_a, col_b = st.columns(2)
             with col_a:
                 st.code(num_limpio, language="text")
-                st.caption("Copiar número SINPE")
+                st.caption(t["copiar_sinpe"])
             with col_b:
                 st.code(f"{int(total)}", language="text")
-                st.caption("Copiar monto exacto")
+                st.caption(t["copiar_monto"])
 
             st.write("---")
-            st.write("### 📋 Datos para la Reserva")
-            nombre_cliente = st.text_input(
-                "Tu Nombre Completo:", key="input_nombre"
-            )
+            st.write(f"### {t['datos_reserva']}")
+            nombre_cliente = st.text_input(t["tu_nombre"], key="input_nombre")
             telefono_cliente = st.text_input(
-                "Tu Número de Teléfono (8 dígitos):",
+                t["tu_telefono"],
                 key="input_telefono",
                 max_chars=8,
                 placeholder="88888888",
             )
 
-            if st.button("🔒 Confirmar Reserva"):
+            if st.button(t["btn_confirmar"]):
                 nombre_limpio = nombre_cliente.strip()
                 telefono_limpio = (
                     telefono_cliente.strip().replace(" ", "").replace("-", "")
@@ -989,16 +1110,18 @@ with tab_comprar:
                 )
 
                 if not es_nombre_valido:
-                    st.error("⚠️ Por favor ingresa un nombre válido.")
+                    st.error(t["err_nombre"])
                 elif not es_telefono_valido:
-                    st.error("⚠️ El teléfono debe tener 8 dígitos.")
+                    st.error(t["err_telefono"])
                 else:
                     exitosos, fallidos = guardar_reserva(
                         numeros_seleccionados, nombre_limpio, telefono_limpio
                     )
 
                     if fallidos:
-                        st.error(f"Números ocupados: {', '.join(fallidos)}")
+                        st.error(
+                            f"{t['nums_ocupados']} {', '.join(fallidos)}"
+                        )
 
                     if exitosos:
                         st.session_state.reserva_confirmada = True
@@ -1010,9 +1133,7 @@ with tab_comprar:
                         st.session_state.sinpe_reserva = num_limpio
                         st.rerun()
         else:
-            st.warning(
-                "Selecciona al menos un número disponible para continuar."
-            )
+            st.warning(t["sel_al_menos_uno"])
 
 with tab_premio:
     lista_premios = obtener_premios()
@@ -1031,34 +1152,51 @@ with tab_premio:
                     except Exception:
                         st.caption("📷 [Imagen no disponible]")
                 with col_txt:
-                    st.markdown("### 🎁 Premio Único")
+                    st.markdown(f"### {t['premio_unico']}")
                     st.markdown(f"## {p_nombre}")
                     if p_desc and p_desc.strip():
                         st.write(p_desc)
             else:
-                st.markdown("### 🎁 Premio Único")
+                st.markdown(f"### {t['premio_unico']}")
                 st.markdown(f"## {p_nombre}")
                 if p_desc and p_desc.strip():
                     st.write(p_desc)
             st.markdown("</div>", unsafe_allow_html=True)
     else:
-        st.info("Aún no se ha detallado el premio para esta rifa.")
+        st.info(t["no_premio"])
 
 with tab_reglamento:
     st.markdown(f"""
-    * **Valor del boleto:** ₡{precio_numero:,.0f} CRC cada número.
-    * **Pago vía SINPE Móvil:** Al realizar la reserva, debes transferir el monto exacto al **{num_limpio}** a nombre de **{nombre_sinpe}**.
-    * **Confirmación:** Envía el comprobante de pago vía WhatsApp para confirmar tu número.
-    * **Plazo máximo:** Las reservas no pagadas en un plazo razonable podrán ser liberadas.
+    * **{t['regla_1'].format(precio_numero)}**
+    * **{t['regla_2'].format(num_limpio, nombre_sinpe)}**
+    * **{t['regla_3']}**
+    * **{t['regla_4']}**
     """)
+
+# --- PESTAÑA: SELECCIÓN DE IDIOMA ---
+with tab_idioma:
+    st.subheader(t["tit_idioma"])
+    st.write(t["sub_idioma"])
+
+    opciones_idiomas = ["Español", "English"]
+    indice_actual = opciones_idiomas.index(st.session_state.idioma)
+
+    seleccion = st.radio(
+        "Idioma / Language:",
+        opciones_idiomas,
+        index=indice_actual,
+        key="radio_idioma_tab",
+    )
+
+    if seleccion != st.session_state.idioma:
+        st.session_state.idioma = seleccion
+        st.rerun()
 
 # --- PIE DE PÁGINA ---
 st.markdown("---")
-st.caption("🔗 **Compartir esta rifa:**")
+st.caption(f"{t['compartir']}")
 
-msg_invitacion = (
-    f"¡Hola! Te invito a participar en la rifa 🎟️ '{titulo_rifa}': {URL_APP}"
-)
+msg_invitacion = t["invitacion_wa"].format(titulo_rifa, URL_APP)
 link_wa_invitacion = (
     f"https://api.whatsapp.com/send?text={urllib.parse.quote(msg_invitacion)}"
 )
