@@ -89,6 +89,7 @@ TEXTOS = {
             "Elige tu idioma de preferencia para navegar en la plataforma:"
         ),
         "msg_idioma_cambiado": "Idioma cambiado a Español correctamente.",
+        "limite_alcanzado": "💡 Has alcanzado el límite máximo de {} números por reserva.",
     },
     "English": {
         "tab_comprar": "🎟️ Buy Tickets",
@@ -149,6 +150,7 @@ TEXTOS = {
         "tit_idioma": "🌐 Select Language / Seleccionar Idioma",
         "sub_idioma": "Choose your preferred language for navigation:",
         "msg_idioma_cambiado": "Language successfully changed to English.",
+        "limite_alcanzado": "💡 You have reached the maximum limit of {} numbers per reservation.",
     },
 }
 
@@ -397,6 +399,7 @@ def obtener_configuracion():
         "rifa_fecha_sorteo": datetime.today().strftime("%Y-%m-%d"),
         "rifa_hora_sorteo": "19:00",
         "total_numeros": "100",
+        "max_numeros_por_persona": "5",  # Límite por defecto
     }
 
     for clave, valor in filas:
@@ -406,7 +409,7 @@ def obtener_configuracion():
 
 
 def guardar_configuracion(
-    titulo, precio, num_sinpe, nombre_sinpe, fecha_str, hora_str, total_nums
+    titulo, precio, num_sinpe, nombre_sinpe, fecha_str, hora_str, total_nums, max_nums
 ):
     conn = conectar_db()
     c = conn.cursor()
@@ -418,6 +421,7 @@ def guardar_configuracion(
         ("rifa_fecha_sorteo", fecha_str),
         ("rifa_hora_sorteo", hora_str),
         ("total_numeros", str(total_nums)),
+        ("max_numeros_por_persona", str(max_nums)),
     ]
     c.executemany(
         "INSERT OR REPLACE INTO configuracion (clave, valor) VALUES (?, ?)", datos
@@ -540,6 +544,7 @@ def reiniciar_rifa():
 # --- CARGAR CONFIGURACIÓN PERMANENTE ---
 config_actual = obtener_configuracion()
 total_numeros_config = int(config_actual.get("total_numeros", 100))
+max_numeros_permitidos = int(config_actual.get("max_numeros_por_persona", 5))
 
 # --- INICIALIZACIÓN DE ESTADO DE SESIÓN ---
 if "reserva_confirmada" not in st.session_state:
@@ -863,6 +868,14 @@ with st.sidebar:
                 step=10,
                 key="input_total_nums",
             )
+            nuevo_max_numeros = st.number_input(
+                "Límite máx. números por persona:",
+                min_value=1,
+                max_value=total_numeros_config,
+                value=max_numeros_permitidos,
+                step=1,
+                key="input_max_nums",
+            )
 
             st.write("---")
             nuevo_sinpe = st.text_input(
@@ -892,6 +905,7 @@ with st.sidebar:
                     fecha_str,
                     hora_str,
                     nuevo_total_numeros,
+                    nuevo_max_numeros,
                 )
                 st.success("¡Configuración guardada!")
                 st.rerun()
@@ -1035,6 +1049,11 @@ with tab_comprar:
         columnas_por_fila = 5
         total_nums = list(range(0, total_numeros_config))
 
+        cant_seleccionados_actual = len(st.session_state.seleccionados_global)
+
+        if cant_seleccionados_actual >= max_numeros_permitidos:
+            st.warning(t["limite_alcanzado"].format(max_numeros_permitidos))
+
         for row_start in range(0, len(total_nums), columnas_por_fila):
             fila_nums = total_nums[row_start : row_start + columnas_por_fila]
             cols = st.columns(columnas_por_fila)
@@ -1056,10 +1075,15 @@ with tab_comprar:
                         esta_seleccionado = (
                             num_str in st.session_state.seleccionados_global
                         )
+                        deshabilitar_por_limite = (
+                            cant_seleccionados_actual >= max_numeros_permitidos
+                        ) and not esta_seleccionado
+
                         if st.checkbox(
                             num_str,
                             value=esta_seleccionado,
                             key=f"num_{num_str}",
+                            disabled=deshabilitar_por_limite,
                         ):
                             if (
                                 num_str
@@ -1068,6 +1092,7 @@ with tab_comprar:
                                 st.session_state.seleccionados_global.append(
                                     num_str
                                 )
+                                st.rerun()
                         else:
                             if (
                                 num_str
@@ -1076,6 +1101,7 @@ with tab_comprar:
                                 st.session_state.seleccionados_global.remove(
                                     num_str
                                 )
+                                st.rerun()
 
         numeros_seleccionados = sorted(
             st.session_state.seleccionados_global, key=lambda x: int(x)
