@@ -3,7 +3,7 @@ import io
 import re
 import sqlite3
 import urllib.parse
-from datetime import date, datetime
+from datetime import date, datetime, time
 
 import pandas as pd
 from PIL import Image, ImageDraw, ImageFont
@@ -29,7 +29,7 @@ TEXTOS = {
         "tab_premio": "🎁 Premio Único",
         "tab_reglamento": "📜 Reglamento",
         "tab_idioma": "🌐 Idioma",
-        "fecha_sorteo": "📅 Fecha del Sorteo:",
+        "fecha_sorteo": "📅 Fecha y Hora del Sorteo:",
         "disp_quedan": "🔥 ¡Atención! Solo quedan {} números disponibles.",
         "disp_total": "🎟️ Números disponibles: {} de {}",
         "reserva_exito_1": "🎉 ¡Número **{}** reservado exitosamente!",
@@ -95,7 +95,7 @@ TEXTOS = {
         "tab_premio": "🎁 Unique Prize",
         "tab_reglamento": "📜 Rules",
         "tab_idioma": "🌐 Language",
-        "fecha_sorteo": "📅 Draw Date:",
+        "fecha_sorteo": "📅 Draw Date & Time:",
         "disp_quedan": "🔥 Attention! Only {} numbers left available.",
         "disp_total": "🎟️ Available numbers: {} of {}",
         "reserva_exito_1": "🎉 Ticket **{}** reserved successfully!",
@@ -224,8 +224,8 @@ st.markdown(
 )
 
 
-# --- FUNCIÓN COMPONENTE: CONTADOR REGRESIVO ---
-def renderizar_contador_regresivo(fecha_sorteo_str):
+# --- FUNCIÓN COMPONENTE: CONTADOR REGRESIVO CON HORA EXACTA ---
+def renderizar_contador_regresivo(fecha_hora_str):
     html_code = f"""
     <div style="
         background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
@@ -267,7 +267,7 @@ def renderizar_contador_regresivo(fecha_sorteo_str):
     </div>
 
     <script>
-        const targetDate = new Date("{fecha_sorteo_str}T23:59:59").getTime();
+        const targetDate = new Date("{fecha_hora_str}").getTime();
 
         const timer = setInterval(function() {{
             const now = new Date().getTime();
@@ -395,6 +395,7 @@ def obtener_configuracion():
         "sinpe_numero": "88888888",
         "sinpe_nombre": "Juan Pérez",
         "rifa_fecha_sorteo": datetime.today().strftime("%Y-%m-%d"),
+        "rifa_hora_sorteo": "19:00",
         "total_numeros": "100",
     }
 
@@ -405,7 +406,7 @@ def obtener_configuracion():
 
 
 def guardar_configuracion(
-    titulo, precio, num_sinpe, nombre_sinpe, fecha_str, total_nums
+    titulo, precio, num_sinpe, nombre_sinpe, fecha_str, hora_str, total_nums
 ):
     conn = conectar_db()
     c = conn.cursor()
@@ -415,6 +416,7 @@ def guardar_configuracion(
         ("sinpe_numero", num_sinpe),
         ("sinpe_nombre", nombre_sinpe),
         ("rifa_fecha_sorteo", fecha_str),
+        ("rifa_hora_sorteo", hora_str),
         ("total_numeros", str(total_nums)),
     ]
     c.executemany(
@@ -552,7 +554,19 @@ try:
 except (KeyError, ValueError):
     fecha_sorteo_db = date.today()
 
-fecha_formateada = fecha_sorteo_db.strftime("%d/%m/%Y")
+try:
+    hora_sorteo_db = datetime.strptime(
+        config_actual.get("rifa_hora_sorteo", "19:00"), "%H:%M"
+    ).time()
+except (KeyError, ValueError):
+    hora_sorteo_db = time(19, 0)
+
+fecha_hora_combinada = f"{config_actual['rifa_fecha_sorteo']}T{hora_sorteo_db.strftime('%H:%M:%S')}"
+fecha_formateada = (
+    f"{fecha_sorteo_db.strftime('%d/%m/%Y')} a las"
+    f" {hora_sorteo_db.strftime('%I:%M %p')}"
+)
+
 titulo_rifa = config_actual["rifa_titulo"]
 precio_numero = int(config_actual["rifa_precio"])
 num_limpio = config_actual["sinpe_numero"]
@@ -816,16 +830,24 @@ with st.sidebar:
     elif clave_admin != "":
         st.error("Contraseña incorrecta")
 
-    with st.expander("⚙️ Configuración de la Rifa (SINPE / Nombre)"):
+    with st.expander("⚙️ Configuración de la Rifa (SINPE / Fecha y Hora)"):
         with st.form("form_configuracion"):
             nuevo_titulo = st.text_input(
                 "Nombre de la Rifa:",
                 value=config_actual["rifa_titulo"],
                 key="input_titulo",
             )
-            fecha_sorteo = st.date_input(
-                "Fecha del Sorteo:", value=fecha_sorteo_db
-            )
+
+            col_fh1, col_fh2 = st.columns(2)
+            with col_fh1:
+                fecha_sorteo = st.date_input(
+                    "Fecha del Sorteo:", value=fecha_sorteo_db
+                )
+            with col_fh2:
+                hora_sorteo = st.time_input(
+                    "Hora del Sorteo:", value=hora_sorteo_db
+                )
+
             nuevo_precio = st.number_input(
                 "Precio por número (₡ CRC):",
                 min_value=100,
@@ -861,12 +883,14 @@ with st.sidebar:
                     nuevo_sinpe.replace("-", "").replace(" ", "").strip()
                 )
                 fecha_str = fecha_sorteo.strftime("%Y-%m-%d")
+                hora_str = hora_sorteo.strftime("%H:%M")
                 guardar_configuracion(
                     nuevo_titulo,
                     nuevo_precio,
                     sinpe_limpio,
                     nuevo_nombre_sinpe,
                     fecha_str,
+                    hora_str,
                     nuevo_total_numeros,
                 )
                 st.success("¡Configuración guardada!")
@@ -876,10 +900,10 @@ with st.sidebar:
 st.title(titulo_rifa)
 st.caption(f"{t['fecha_sorteo']} {fecha_formateada}")
 
-# --- COMPONENTE VISUAL: CONTADOR REGRESIVO ---
-renderizar_contador_regresivo(config_actual["rifa_fecha_sorteo"])
+# --- COMPONENTE VISUAL: CONTADOR REGRESIVO CON HORA EXACTA ---
+renderizar_contador_regresivo(fecha_hora_combinada)
 
-# --- PESTAÑAS PRINCIPALES (INCLUYENDO PESTAÑA DE IDIOMA) ---
+# --- PESTAÑAS PRINCIPALES ---
 tab_comprar, tab_premio, tab_reglamento, tab_idioma = st.tabs([
     t["tab_comprar"],
     t["tab_premio"],
@@ -958,7 +982,7 @@ with tab_comprar:
         mensaje_wa = (
             "Hola! Acabo de reservar en la"
             f" *{st.session_state.titulo_reserva}*:\n\n👤 *Nombre:*"
-            f" {st.session_state.nombre_reserva}\n📅 *Fecha del sorteo:*"
+            f" {st.session_state.nombre_reserva}\n📅 *Fecha y hora del sorteo:*"
             f" {st.session_state.fecha_reserva}\n🎟️ *{txt_nums_wa}\n💰 *Monto"
             f" transferido:* ₡{st.session_state.total_reserva:,.0f} CRC\n\nAdjunto"
             " el comprobante del SINPE Móvil enviado al"
