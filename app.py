@@ -42,9 +42,7 @@ TEXTOS = {
         "ticket_total": "Total a Pagar:",
         "ticket_fecha": "Fecha de Sorteo:",
         "ticket_suerte": "🍀 ¡Buena Suerte! 🍀",
-        "metodos_pago": (
-            "📲 Elige tu método para pagar / enviar comprobante:"
-        ),
+        "metodos_pago": "📲 Elige tu método para pagar / enviar comprobante:",
         "selecciona_banco": "Si pagas por SMS, selecciona tu banco:",
         "btn_pagar_sms": "💬 Pagar vía SMS ({})",
         "btn_confirmar_wa": "🟢 Confirmar por WhatsApp",
@@ -65,30 +63,17 @@ TEXTOS = {
         "err_nombre": "⚠️ Por favor ingresa un nombre válido.",
         "err_telefono": "⚠️ El teléfono debe tener 8 dígitos.",
         "nums_ocupados": "Números ocupados:",
-        "sel_al_menos_uno": (
-            "Selecciona al menos un número disponible para continuar."
-        ),
+        "sel_al_menos_uno": "Selecciona al menos un número disponible para continuar.",
         "premio_unico": "🎁 Premio Único",
         "no_premio": "Aún no se ha detallado el premio para esta rifa.",
         "regla_1": "Valor del boleto: ₡{:,.0f} CRC cada número.",
-        "regla_2": (
-            "Pago vía SINPE Móvil: Al realizar la reserva, debes transferir"
-            " el monto exacto al {} a nombre de {}."
-        ),
-        "regla_3": (
-            "Confirmación: Envía el comprobante de pago vía WhatsApp para"
-            " confirmar tu número."
-        ),
-        "regla_4": (
-            "Plazo máximo: Las reservas no pagadas en un plazo razonable"
-            " podrán ser liberadas."
-        ),
+        "regla_2": "Pago vía SINPE Móvil: Al realizar la reserva, debes transferir el monto exacto al {} a nombre de {}.",
+        "regla_3": "Confirmación: Envía el comprobante de pago vía WhatsApp para confirmar tu número.",
+        "regla_4": "Plazo máximo: Las reservas no pagadas en un plazo razonable podrán ser liberadas.",
         "compartir": "🔗 Compartir esta rifa:",
         "invitacion_wa": "¡Hola! Te invito a participar en la rifa 🎟️ '{}': {}",
         "tit_idioma": "🌐 Seleccionar Idioma / Select Language",
-        "sub_idioma": (
-            "Elige tu idioma de preferencia para navegar en la plataforma:"
-        ),
+        "sub_idioma": "Elige tu idioma de preferencia para navegar en la plataforma:",
         "msg_idioma_cambiado": "Idioma cambiado a Español correctamente.",
         "limite_alcanzado": "💡 Has alcanzado el límite máximo de {} números por reserva.",
     },
@@ -134,18 +119,9 @@ TEXTOS = {
         "premio_unico": "🎁 Unique Prize",
         "no_premio": "No prize details available yet for this raffle.",
         "regla_1": "Ticket price: ₡{:,.0f} CRC each ticket.",
-        "regla_2": (
-            "SINPE Móvil Payment: Upon reserving, transfer the exact amount"
-            " to {} registered under {}."
-        ),
-        "regla_3": (
-            "Confirmation: Send payment receipt via WhatsApp to confirm your"
-            " ticket."
-        ),
-        "regla_4": (
-            "Time limit: Unpaid reservations within a reasonable period may"
-            " be released."
-        ),
+        "regla_2": "SINPE Móvil Payment: Upon reserving, transfer the exact amount to {} registered under {}.",
+        "regla_3": "Confirmation: Send payment receipt via WhatsApp to confirm your ticket.",
+        "regla_4": "Time limit: Unpaid reservations within a reasonable period may be released.",
         "compartir": "🔗 Share this raffle:",
         "invitacion_wa": "Hello! I invite you to join the raffle 🎟️ '{}': {}",
         "tit_idioma": "🌐 Select Language / Seleccionar Idioma",
@@ -227,7 +203,7 @@ st.markdown(
 )
 
 
-# --- FUNCIÓN COMPONENTE: CONTADOR REGRESIVO CON HORA EXACTA ---
+# --- FUNCIÓN COMPONENTE: CONTADOR REGRESIVO ---
 def renderizar_contador_regresivo(fecha_hora_str):
     html_code = f"""
     <div style="
@@ -349,7 +325,7 @@ def generar_imagen_comprobante_admin(
     return buf.getvalue()
 
 
-# --- CONEXIÓN Y FUNCIONES DE BASE DE DATOS (rifa_v3.db) ---
+# --- CONEXIÓN Y FUNCIONES DE BASE DE DATOS ---
 def conectar_db():
     url = st.secrets["turso"]["url"]
     token = st.secrets["turso"]["token"]
@@ -402,7 +378,7 @@ def obtener_configuracion():
         "rifa_fecha_sorteo": datetime.today().strftime("%Y-%m-%d"),
         "rifa_hora_sorteo": "19:00",
         "total_numeros": "100",
-        "max_numeros_por_persona": "5",  # Límite por defecto
+        "max_numeros_por_persona": "5",
     }
 
     for clave, valor in filas:
@@ -497,8 +473,7 @@ def guardar_reserva(numeros, nombre, telefono):
                 (num, nombre, telefono),
             )
             exitosos.append(num)
-        except (sqlite3.IntegrityError, Exception) as e:
-            # Captura duplicados simultáneos en Turso (sqlite3 o libsql)
+        except (sqlite3.IntegrityError, Exception):
             fallidos.append(num)
 
     conn.commit()
@@ -913,3 +888,293 @@ with st.sidebar:
                 )
                 st.success("¡Configuración actualizada correctamente!")
                 st.rerun()
+
+# --- VISTA PRINCIPAL DEL CLIENTE ---
+st.title(titulo_rifa)
+
+renderizar_contador_regresivo(fecha_hora_combinada)
+
+tab_comprar, tab_premio, tab_reglamento, tab_idioma = st.tabs([
+    t["tab_comprar"],
+    t["tab_premio"],
+    t["tab_reglamento"],
+    t["tab_idioma"],
+])
+
+with tab_comprar:
+    mapa_ocupados = obtener_mapa_numeros_ocupados()
+    total_reservados = len(mapa_ocupados)
+    disponibles_cant = total_numeros_config - total_reservados
+
+    st.write(f"**{t['fecha_sorteo']}** {fecha_formateada}")
+
+    if disponibles_cant <= 10:
+        st.warning(t["disp_quedan"].format(disponibles_cant))
+    else:
+        st.info(t["disp_total"].format(disponibles_cant, total_numeros_config))
+
+    if st.session_state.reserva_confirmada:
+        numeros_confirmados = st.session_state.get(
+            "confirmados_num", st.session_state.seleccionados_global
+        )
+        nombre_c = st.session_state.get("confirmados_nombre", "")
+        monto_c = len(numeros_confirmados) * precio_numero
+        str_nums = ", ".join(numeros_confirmados)
+
+        if len(numeros_confirmados) == 1:
+            st.success(t["reserva_exito_1"].format(str_nums))
+        else:
+            st.success(t["reserva_exito_varios"].format(str_nums))
+
+        st.markdown(
+            f"""
+            <div class="ticket-box">
+                <h3 style="margin-top:0; color:#0056b3;">{t['ticket_titulo']}</h3>
+                <p style="margin:4px 0;"><b>{t['ticket_rifa']}</b> {titulo_rifa}</p>
+                <p style="margin:4px 0;"><b>{t['ticket_comprador']}</b> {nombre_c}</p>
+                <p style="margin:4px 0; font-size:18px;"><b>{t['ticket_numeros']}</b> <span style="color:#d9534f; font-weight:bold;">{str_nums}</span></p>
+                <p style="margin:4px 0;"><b>{t['ticket_total']}</b> ₡{monto_c:,.0f} CRC</p>
+                <p style="margin:4px 0;"><b>{t['ticket_fecha']}</b> {fecha_formateada}</p>
+                <p style="margin-top:10px; font-weight:bold; color:#28a745;">{t['ticket_suerte']}</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        st.write(f"### {t['metodos_pago']}")
+
+        msg_wa = (
+            f"Hola, acabo de reservar el/los número(s) {str_nums} para la rifa"
+            f" '{titulo_rifa}' a nombre de {nombre_c}. Total: ₡{monto_c:,.0f}"
+            " CRC. Adjunto comprobante de pago SINPE."
+        )
+        url_wa = (
+            f"https://wa.me/506{num_limpio}?text={urllib.parse.quote(msg_wa)}"
+        )
+
+        st.markdown(
+            f"""
+            <a href="{url_wa}" target="_blank">
+                <button style="background-color: #25D366; color: white; border: none; padding: 12px; font-weight: bold; border-radius: 8px; width: 100%; cursor: pointer; font-size: 16px; margin-bottom: 10px;">
+                    {t['btn_confirmar_wa']}
+                </button>
+            </a>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        st.write(f"**{t['selecciona_banco']}**")
+        banco_sel = st.selectbox(
+            "Banco:",
+            [
+                "BAC Credomatic",
+                "Banco Nacional (BNCR)",
+                "Banco de Costa Rica (BCR)",
+            ],
+            key="sel_banco_sms",
+        )
+
+        num_banco_destino = "2223"
+        if banco_sel == "Banco Nacional (BNCR)":
+            num_banco_destino = "2627"
+        elif banco_sel == "Banco de Costa Rica (BCR)":
+            num_banco_destino = "2276"
+
+        cuerpo_sms = f"PASE {monto_c} {num_limpio} Rifa {str_nums}"
+        url_sms = f"sms:{num_banco_destino}?body={urllib.parse.quote(cuerpo_sms)}"
+
+        st.markdown(
+            f"""
+            <a href="{url_sms}">
+                <button style="background-color: #007bff; color: white; border: none; padding: 12px; font-weight: bold; border-radius: 8px; width: 100%; cursor: pointer; font-size: 16px; margin-bottom: 15px;">
+                    {t['btn_pagar_sms'].format(banco_sel)}
+                </button>
+            </a>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        if st.button(t["btn_otra_reserva"]):
+            st.session_state.reserva_confirmada = False
+            st.session_state.seleccionados_global = []
+            st.rerun()
+
+    else:
+        st.write(f"### {t['sel_numeros']}")
+        st.caption(t["leyenda"])
+
+        # Matriz dinámica de números (10 columnas por fila)
+        COLS = 10
+        total_filas = (total_numeros_config + COLS - 1) // COLS
+
+        for fila in range(total_filas):
+            cols = st.columns(COLS)
+            for c in range(COLS):
+                idx = fila * COLS + c + 1
+                if idx <= total_numeros_config:
+                    num_str = f"{idx:02d}"
+                    with cols[c]:
+                        if num_str in mapa_ocupados:
+                            est_p = mapa_ocupados[num_str]
+                            label_num = (
+                                f"✅ {num_str}"
+                                if "Pagado" in str(est_p)
+                                else f"❌ {num_str}"
+                            )
+                            st.button(
+                                label_num,
+                                key=f"btn_dis_{num_str}",
+                                disabled=True,
+                            )
+                        else:
+                            is_checked = num_str in st.session_state.seleccionados_global
+                            checked = st.checkbox(
+                                num_str,
+                                value=is_checked,
+                                key=f"chk_{num_str}",
+                            )
+
+                            if checked and num_str not in st.session_state.seleccionados_global:
+                                if len(st.session_state.seleccionados_global) < max_numeros_permitidos:
+                                    st.session_state.seleccionados_global.append(num_str)
+                                else:
+                                    st.warning(t["limite_alcanzado"].format(max_numeros_permitidos))
+                                    st.rerun()
+                            elif not checked and num_str in st.session_state.seleccionados_global:
+                                st.session_state.seleccionados_global.remove(num_str)
+
+        st.write("---")
+
+        if st.session_state.seleccionados_global:
+            st.session_state.seleccionados_global.sort(key=lambda x: int(x))
+            cant_sel = len(st.session_state.seleccionados_global)
+            str_sel = ", ".join(st.session_state.seleccionados_global)
+            total_monto = cant_sel * precio_numero
+
+            lbl_txt = t["num_elegido"] if cant_sel == 1 else t["nums_elegidos"]
+            st.markdown(f"**{lbl_txt}:** `{str_sel}`")
+            st.markdown(
+                f"**{t['total_pagar']}** <span style='font-size:20px;"
+                f" color:#28a745; font-weight:bold;'>₡{total_monto:,.0f} CRC</span>",
+                unsafe_allow_html=True,
+            )
+
+            st.write("---")
+            st.markdown(f"### {t['datos_sinpe']}")
+            st.markdown(f"📱 **SINPE:** `{num_limpio}`")
+            st.markdown(f"👤 **{t['titular']}** {nombre_sinpe}")
+
+            col_cp1, col_cp2 = st.columns(2)
+            with col_cp1:
+                st.code(num_limpio, language="text")
+            with col_cp2:
+                st.code(str(total_monto), language="text")
+
+            st.write("---")
+            st.markdown(f"### {t['datos_reserva']}")
+
+            with st.form("form_reserva"):
+                nombre_comp = st.text_input(t["tu_nombre"], placeholder="Ej: María Rodríguez")
+                telef_comp = st.text_input(t["tu_telefono"], placeholder="Ej: 88888888")
+
+                btn_reserva = st.form_submit_button(t["btn_confirmar"])
+
+                if btn_reserva:
+                    tel_clean = (
+                        telef_comp.replace("-", "").replace(" ", "").strip()
+                    )
+
+                    if not nombre_comp.strip():
+                        st.error(t["err_nombre"])
+                    elif not tel_clean.isdigit() or len(tel_clean) != 8:
+                        st.error(t["err_telefono"])
+                    else:
+                        exitosos, fallidos = guardar_reserva(
+                            st.session_state.seleccionados_global,
+                            nombre_comp.strip(),
+                            tel_clean,
+                        )
+
+                        if fallidos:
+                            st.error(
+                                f"⚠️ Los siguientes números ya fueron reservados por otra persona: {', '.join(fallidos)}"
+                            )
+                            st.session_state.seleccionados_global = [
+                                n
+                                for n in st.session_state.seleccionados_global
+                                if n not in fallidos
+                            ]
+                            st.rerun()
+                        else:
+                            st.session_state.reserva_confirmada = True
+                            st.session_state.confirmados_num = exitosos
+                            st.session_state.confirmados_nombre = nombre_comp.strip()
+                            st.rerun()
+        else:
+            st.info(t["sel_al_menos_uno"])
+
+with tab_premio:
+    st.header(t["premio_unico"])
+    premios_db = obtener_premios()
+
+    if premios_db:
+        for p in premios_db:
+            p_id, p_lugar, p_nombre, p_desc, p_img = p
+            st.markdown(
+                f"""
+                <div class="premio-box">
+                    <h3 style="color:#0056b3; margin-top:0;">🏆 {p_nombre}</h3>
+                    <p style="font-size:15px; color:#555;">{p_desc}</p>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            if p_img:
+                try:
+                    img_bytes = base64.b64decode(p_img)
+                    st.image(img_bytes, use_container_width=True)
+                except Exception:
+                    pass
+    else:
+        st.info(t["no_premio"])
+
+with tab_reglamento:
+    st.header(t["tab_reglamento"])
+    st.write(f"1. {t['regla_1'].format(precio_numero)}")
+    st.write(f"2. {t['regla_2'].format(num_limpio, nombre_sinpe)}")
+    st.write(f"3. {t['regla_3']}")
+    st.write(f"4. {t['regla_4']}")
+
+    st.write("---")
+    st.write(f"### {t['compartir']}")
+    msg_inv = t["invitacion_wa"].format(titulo_rifa, URL_APP)
+    url_share_wa = f"https://wa.me/?text={urllib.parse.quote(msg_inv)}"
+
+    st.markdown(
+        f"""
+        <a href="{url_share_wa}" target="_blank">
+            <button style="background-color: #25D366; color: white; border: none; padding: 10px 15px; font-weight: bold; border-radius: 6px; cursor: pointer;">
+                📲 Compartir Rifa por WhatsApp
+            </button>
+        </a>
+        """,
+        unsafe_allow_html=True,
+    )
+
+with tab_idioma:
+    st.header(t["tit_idioma"])
+    st.write(t["sub_idioma"])
+
+    opcion_idioma = st.radio(
+        "Language / Idioma:",
+        ["Español", "English"],
+        index=0 if st.session_state.idioma == "Español" else 1,
+    )
+
+    if opcion_idioma != st.session_state.idioma:
+        st.session_state.idioma = opcion_idioma
+        st.success(
+            TEXTOS[opcion_idioma]["msg_idioma_cambiado"]
+        )
+        st.rerun()
