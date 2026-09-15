@@ -2,7 +2,7 @@ import base64
 import io
 import re
 import sqlite3
-import libsql_experimental as libsql
+import libsql
 import urllib.parse
 from datetime import date, datetime, time
 
