@@ -5,7 +5,7 @@ import sqlite3
 import urllib.parse
 from datetime import date, datetime, time
 
-import libsql_experimental as libsql
+import libsql_client as libsql
 import pandas as pd
 from PIL import Image, ImageDraw, ImageFont
 import streamlit as st
