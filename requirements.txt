@@ -1,4 +1,4 @@
 streamlit
 pandas
 Pillow
-import libsql_client as libsql
+libsql-experimental
