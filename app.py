@@ -351,11 +351,10 @@ def generar_imagen_comprobante_admin(
 
 # --- CONEXIÓN Y FUNCIONES DE BASE DE DATOS (rifa_v3.db) ---
 def conectar_db():
-   url = st.secrets["turso"]["url"]
-token = st.secrets["turso"]["token"]
-conn = libsql.connect(database=url, auth_token=token)
+    url = st.secrets["turso"]["url"]
+    token = st.secrets["turso"]["token"]
+    conn = libsql.connect(database=url, auth_token=token)
     c = conn.cursor()
-
     c.execute("""
         CREATE TABLE IF NOT EXISTS numeros_comprados (
             numero TEXT PRIMARY KEY,
