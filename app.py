@@ -365,19 +365,13 @@ def conectar_db():
             fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
-    return conn
+    c.execute("""
         CREATE TABLE IF NOT EXISTS configuracion (
             clave TEXT PRIMARY KEY,
             valor TEXT
         )
     """)
-
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS premios (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            lugar TEXT,
-            nombre TEXT,
-            descripcion TEXT,
+    return conn
             imagen_data TEXT
         )
     """)
