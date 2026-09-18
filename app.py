@@ -376,12 +376,15 @@ def conectar_db():
     """)
     
     return conn
+
+def obtener_configuracion():
+    conn = conectar_db()
+    c = conn.cursor()
     c.execute("SELECT clave, valor FROM configuracion")
     filas = c.fetchall()
-    conn.close()
-
+    
     config = {
-        "rifa_titulo": "🎟️ Gran Rifa Especial 🇨🇷",
+        "rifa_titulo": "🎟️ Gran Rifa Especial CR",
         "rifa_precio": "1000",
         "sinpe_numero": "88888888",
         "sinpe_nombre": "Juan Pérez",
@@ -390,6 +393,11 @@ def conectar_db():
         "total_numeros": "100",
         "max_numeros_por_persona": "5",  # Límite por defecto
     }
+    
+    for clave, valor in filas:
+        config[clave] = valor
+        
+    return config
 
     for clave, valor in filas:
         config[clave] = valor
