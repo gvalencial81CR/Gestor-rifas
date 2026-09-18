@@ -356,33 +356,26 @@ def conectar_db():
     token = st.secrets["turso"]["token"]
     conn = libsql.connect(database=url, auth_token=token)
     c = conn.cursor()
+    
     c.execute("""
         CREATE TABLE IF NOT EXISTS numeros_comprados (
             numero TEXT PRIMARY KEY,
             comprador TEXT,
             telefono TEXT,
             estado_pago TEXT DEFAULT 'Pendiente',
-            fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            imagen_data TEXT
         )
     """)
+    
     c.execute("""
         CREATE TABLE IF NOT EXISTS configuracion (
             clave TEXT PRIMARY KEY,
             valor TEXT
         )
     """)
+    
     return conn
-            imagen_data TEXT
-        )
-    """)
-
-    conn.commit()
-    return conn
-
-
-def obtener_configuracion():
-    conn = conectar_db()
-    c = conn.cursor()
     c.execute("SELECT clave, valor FROM configuracion")
     filas = c.fetchall()
     conn.close()
