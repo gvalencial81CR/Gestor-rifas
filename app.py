@@ -1260,4 +1260,3 @@ with col_share1:
 
 with col_share2:
     st.code(URL_APP, language="text")
-
