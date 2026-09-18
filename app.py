@@ -355,7 +355,7 @@ def conectar_db():
     url = st.secrets["turso"]["url"]
     token = st.secrets["turso"]["token"]
     conn = libsql.connect(database=url, auth_token=token)
-    c = conn.cursor()
+    return conn
     c.execute("""
         CREATE TABLE IF NOT EXISTS numeros_comprados (
             numero TEXT PRIMARY KEY,
