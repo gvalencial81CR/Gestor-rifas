@@ -399,12 +399,6 @@ def obtener_configuracion():
         
     return config
 
-    for clave, valor in filas:
-        config[clave] = valor
-
-    return config
-
-
 def guardar_configuracion(
     titulo, precio, num_sinpe, nombre_sinpe, fecha_str, hora_str, total_nums, max_nums
 ):
