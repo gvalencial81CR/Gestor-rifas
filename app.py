@@ -1,15 +1,14 @@
 import base64
 import io
 import re
-import sqlite3
-import libsql_experimental as libsql
 import urllib.parse
 from datetime import date, datetime, time
 
 import pandas as pd
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw
 import streamlit as st
 import streamlit.components.v1 as components
+import libsql_experimental as libsql
 
 # Configuración de la página
 st.set_page_config(
@@ -42,9 +41,7 @@ TEXTOS = {
         "ticket_total": "Total a Pagar:",
         "ticket_fecha": "Fecha de Sorteo:",
         "ticket_suerte": "🍀 ¡Buena Suerte! 🍀",
-        "metodos_pago": (
-            "📲 Elige tu método para pagar / enviar comprobante:"
-        ),
+        "metodos_pago": "📲 Elige tu método para pagar / enviar comprobante:",
         "selecciona_banco": "Si pagas por SMS, selecciona tu banco:",
         "btn_pagar_sms": "💬 Pagar vía SMS ({})",
         "btn_confirmar_wa": "🟢 Confirmar por WhatsApp",
@@ -65,9 +62,7 @@ TEXTOS = {
         "err_nombre": "⚠️ Por favor ingresa un nombre válido.",
         "err_telefono": "⚠️ El teléfono debe tener 8 dígitos.",
         "nums_ocupados": "Números ocupados:",
-        "sel_al_menos_uno": (
-            "Selecciona al menos un número disponible para continuar."
-        ),
+        "sel_al_menos_uno": "Selecciona al menos un número disponible para continuar.",
         "premio_unico": "🎁 Premio Único",
         "no_premio": "Aún no se ha detallado el premio para esta rifa.",
         "regla_1": "Valor del boleto: ₡{:,.0f} CRC cada número.",
@@ -86,9 +81,7 @@ TEXTOS = {
         "compartir": "🔗 Compartir esta rifa:",
         "invitacion_wa": "¡Hola! Te invito a participar en la rifa 🎟️ '{}': {}",
         "tit_idioma": "🌐 Seleccionar Idioma / Select Language",
-        "sub_idioma": (
-            "Elige tu idioma de preferencia para navegar en la plataforma:"
-        ),
+        "sub_idioma": "Elige tu idioma de preferencia para navegar en la plataforma:",
         "msg_idioma_cambiado": "Idioma cambiado a Español correctamente.",
         "limite_alcanzado": "💡 Has alcanzado el límite máximo de {} números por reserva.",
     },
@@ -349,7 +342,7 @@ def generar_imagen_comprobante_admin(
     return buf.getvalue()
 
 
-# --- CONEXIÓN Y FUNCIONES DE BASE DE DATOS (rifa_v3.db) ---
+# --- CONEXIÓN Y FUNCIONES DE BASE DE DATOS ---
 @st.cache_resource
 def conectar_db():
     url = st.secrets["turso"]["url"]
@@ -375,6 +368,16 @@ def conectar_db():
         )
     """)
     
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS premios (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            lugar TEXT,
+            nombre TEXT,
+            descripcion TEXT,
+            imagen_data TEXT
+        )
+    """)
+    
     return conn
 
 def obtener_configuracion():
@@ -391,7 +394,7 @@ def obtener_configuracion():
         "rifa_fecha_sorteo": datetime.today().strftime("%Y-%m-%d"),
         "rifa_hora_sorteo": "19:00",
         "total_numeros": "100",
-        "max_numeros_por_persona": "5",  # Límite por defecto
+        "max_numeros_por_persona": "5",
     }
     
     for clave, valor in filas:
@@ -414,11 +417,9 @@ def guardar_configuracion(
         ("total_numeros", str(total_nums)),
         ("max_numeros_por_persona", str(max_nums)),
     ]
-    c.executemany(
-        "INSERT OR REPLACE INTO configuracion (clave, valor) VALUES (?, ?)", datos
-    )
+    for clave, valor in datos:
+        c.execute("INSERT INTO configuracion (clave, valor) VALUES (?, ?) ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor", (clave, valor))
     conn.commit()
-    conn.close()
 
 
 def procesar_imagen_a_base64(uploaded_file):
@@ -439,7 +440,6 @@ def agregar_premio(lugar, nombre, descripcion, imagen_data):
         (lugar, nombre, descripcion, imagen_data),
     )
     conn.commit()
-    conn.close()
 
 
 def obtener_premios():
@@ -450,7 +450,6 @@ def obtener_premios():
         " ORDER BY id DESC LIMIT 1"
     )
     filas = c.fetchall()
-    conn.close()
     return filas
 
 
@@ -459,7 +458,6 @@ def eliminar_premio(premio_id):
     c = conn.cursor()
     c.execute("DELETE FROM premios WHERE id = ?", (premio_id,))
     conn.commit()
-    conn.close()
 
 
 def obtener_mapa_numeros_ocupados():
@@ -467,7 +465,6 @@ def obtener_mapa_numeros_ocupados():
     c = conn.cursor()
     c.execute("SELECT numero, estado_pago FROM numeros_comprados")
     filas = c.fetchall()
-    conn.close()
     return {f[0]: f[1] for f in filas}
 
 
@@ -485,23 +482,24 @@ def guardar_reserva(numeros, nombre, telefono):
                 (num, nombre, telefono),
             )
             exitosos.append(num)
-        except sqlite3.IntegrityError:
+        except Exception:
             fallidos.append(num)
 
     conn.commit()
-    conn.close()
     return exitosos, fallidos
 
 
 def obtener_todas_las_reservas():
     conn = conectar_db()
-    query = (
+    c = conn.cursor()
+    c.execute(
         "SELECT numero AS 'Número', comprador AS 'Comprador', telefono AS"
         " 'Teléfono', estado_pago AS 'Estatus Pago', fecha AS 'Fecha Reserva'"
         " FROM numeros_comprados ORDER BY CAST(numero AS INTEGER) ASC"
     )
-    df = pd.read_sql_query(query, conn)
-    conn.close()
+    filas = c.fetchall()
+    columnas = ['Número', 'Comprador', 'Teléfono', 'Estatus Pago', 'Fecha Reserva']
+    df = pd.DataFrame(filas, columns=columnas)
     return df
 
 
@@ -513,7 +511,6 @@ def cambiar_estado_pago(numero, nuevo_estado):
         (nuevo_estado, numero),
     )
     conn.commit()
-    conn.close()
 
 
 def liberar_numero(numero):
@@ -521,7 +518,6 @@ def liberar_numero(numero):
     c = conn.cursor()
     c.execute("DELETE FROM numeros_comprados WHERE numero = ?", (numero,))
     conn.commit()
-    conn.close()
 
 
 def reiniciar_rifa():
@@ -529,7 +525,6 @@ def reiniciar_rifa():
     c = conn.cursor()
     c.execute("DELETE FROM numeros_comprados")
     conn.commit()
-    conn.close()
 
 
 # --- CARGAR CONFIGURACIÓN PERMANENTE ---
